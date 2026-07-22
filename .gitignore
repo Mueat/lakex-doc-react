@@ -1,0 +1,11 @@
+node_modules/
+dist/
+examples/dist-demo/
+*.log
+.DS_Store
+.workbuddy
+.yarn-error.log
+.package-lock.json
+test/
+.git
+yarn.lock
