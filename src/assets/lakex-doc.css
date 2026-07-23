@@ -5094,7 +5094,7 @@ ne-card[data-card-name='label'] .ne-card-label-text {
 .ne-layout-mode-fixed .ne-engine,
 .ne-layout-mode-adapt .ne-engine {
   min-height: 1024px;
-  padding: 20px 40px 90px 40px;
+  padding: 20px 70px 90px 70px !important;
 }
 .ne-layout-mode-fixed .ne-ui-sidebar,
 .ne-layout-mode-adapt .ne-ui-sidebar {
@@ -15146,6 +15146,28 @@ ne-h4.hovered ne-heading-anchor {
   z-index: -1;
   border-radius: 6px;
 }
+.ne-paragraph-spacing-relax.ne-typography-classic ne-alert>:last-child, .ne-paragraph-spacing-relax.ne-typography-classic ne-collapse>:last-child, .ne-paragraph-spacing-relax.ne-typography-classic ne-column>:last-child, .ne-paragraph-spacing-relax.ne-typography-classic ne-column-content>:last-child, .ne-paragraph-spacing-relax.ne-typography-classic ne-alert>ne-p:last-child ne-card, .ne-paragraph-spacing-relax.ne-typography-classic ne-collapse>ne-p:last-child ne-card, .ne-paragraph-spacing-relax.ne-typography-classic ne-column>ne-p:last-child ne-card, .ne-paragraph-spacing-relax.ne-typography-classic ne-column-content>ne-p:last-child ne-card, .ne-paragraph-spacing-relax.ne-typography-classic ne-alert>ne-p:last-child ne-card.ne-spacing-all, .ne-paragraph-spacing-relax.ne-typography-classic ne-collapse>ne-p:last-child ne-card.ne-spacing-all, .ne-paragraph-spacing-relax.ne-typography-classic ne-column>ne-p:last-child ne-card.ne-spacing-all, .ne-paragraph-spacing-relax.ne-typography-classic ne-column-content>ne-p:last-child ne-card.ne-spacing-all {
+    margin-bottom: 0;
+}
+.ne-engine ne-p{
+    margin-bottom: 7.83px;
+}
+.ne-engine ne-p.ne-brick-highlight{
+    position: relative;
+}
+.ne-engine ne-p.ne-brick-highlight:before, .ne-engine ne-p.app-ne-brick-highlight:before {
+    content: " ";
+    background: var(--lakex-editor-background-focus);
+    opacity: .4;
+    z-index: -1;
+    border-radius: 6px;
+    height: calc(100% + 4px);
+    position: absolute;
+    top: -2px;
+    bottom: 0;
+    left: -6px;
+    right: 0;
+}
 .ne-viewer ne-heading-ext,
 .ne-engine ne-heading-ext {
   position: absolute;
@@ -20112,6 +20134,8 @@ ne-root-card-hole[data-no-spacing] {
 .ne-paragraph-spacing-relax.ne-typography-classic.fz24.ne-viewer .ne-viewer-body ne-collapse ne-collapse-content {
   padding-bottom: 0;
 }
+
+
 /*
  * 本文件提供【经典】排版的基础样式设置，此处需要和各插件配合，使得 js 中获取的值和 css 中定义的值处于一致状态
  */
@@ -20129,20 +20153,20 @@ ne-root-card-hole[data-no-spacing] {
   font-size: 11.25px;
 }
 .ne-typography-classic ne-h1 {
-  margin: 26px 0 10px 0;
+  margin: 36px 0 16px 0;
 }
 .ne-typography-classic ne-h2 {
-  margin: 21px 0 5px 0;
+  margin: 32px 0 14px 0;
 }
 .ne-typography-classic ne-h3 {
-  margin: 16px 0 5px 0;
+  margin: 28px 0 12px 0;
 }
 .ne-typography-classic ne-h4 {
-  margin: 10px 0 5px 0;
+  margin: 24px 0 10px 0;
 }
 .ne-typography-classic ne-h5 {
   font-size: 15px !important;
-  margin: 8px 0 5px 0;
+  margin: 16px 0 8px 0;
 }
 .ne-typography-classic ne-h5 ne-text,
 .ne-typography-classic ne-h5 [ne-fontsize],
@@ -20738,6 +20762,7 @@ ne-collapse:hover {
 ne-collapse.ne-brick-highlight {
   border-color: var(--lakex-editor-card-border-hover);
 }
+
 ne-collapse.app-ne-brick-highlight {
   border-color: var(--lakex-editor-text-link) !important;
   box-shadow: 0px 0px 0px 0.5px var(--lakex-editor-text-link);

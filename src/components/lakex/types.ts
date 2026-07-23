@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
+import type { BlockMenuAction } from "../BlockContextMenu";
 
 export type LakexEditorContentType =
   | "text/lake"
@@ -588,4 +589,13 @@ export interface LakexEditorProps {
    * 禁用合并配置功能，当禁用后，编辑器默认配置将不会
    */
   disableMergeConfig?: boolean;
+  /**
+   * 块操作回调（右键菜单动作触发时调用）
+   * 可用于业务方自定义处理或追踪用户操作
+   */
+  onBlockAction?: (action: BlockMenuAction, data: {
+    blockElement: HTMLElement;
+    blockType: string;
+    payload?: string;
+  }) => void;
 }

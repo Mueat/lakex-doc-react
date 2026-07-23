@@ -1,0 +1,140 @@
+/* src/components/BlockContextMenu/BlockContextMenu.css
+ * 块节点右键上下文菜单样式（参考截图中的 Notion 风格）
+ */
+
+.ne-block-context-menu {
+  position: fixed;
+  z-index: 1100;
+  min-width: 200px;
+  max-width: 280px;
+  animation: ne-block-menu-appear 0.12s ease-out;
+}
+
+@keyframes ne-block-menu-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.ne-block-context-menu-inner {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+  padding: 4px 0;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* 菜单项 */
+.ne-block-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 20px;
+  color: #333;
+  transition: background-color 0.1s ease;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ne-block-menu-item:hover:not(.disabled) {
+  background-color: #f5f5f5;
+}
+
+.ne-block-menu-item.active {
+  background-color: #f0f2f5;
+}
+
+.ne-block-menu-item.disabled {
+  color: #ccc;
+  cursor: not-allowed;
+}
+
+/* 图标 */
+.ne-block-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: #666;
+}
+
+.ne-block-menu-item:hover:not(.disabled) .ne-block-menu-icon,
+.ne-block-menu-item.active .ne-block-menu-icon {
+  color: #333;
+}
+
+.ne-block-menu-item.disabled .ne-block-menu-icon {
+  color: #ddd;
+}
+
+/* 标签文字 */
+.ne-block-menu-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 箭头 */
+.ne-block-menu-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: #999;
+  flex-shrink: 0;
+}
+
+/* 分隔线 */
+.ne-block-menu-divider {
+  height: 1px;
+  background-color: #f0f0f0;
+  margin: 4px 12px;
+}
+
+/* ========== 子菜单 ========== */
+.ne-block-submenu {
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  min-width: 160px;
+  max-width: 220px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+  padding: 4px 0;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  animation: ne-block-submenu-appear 0.1s ease-out;
+}
+
+@keyframes ne-block-submenu-appear {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.ne-block-submenu .ne-block-menu-item {
+  padding: 7px 10px;
+  font-size: 13px;
+}

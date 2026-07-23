@@ -1,7 +1,7 @@
 // src/editor/cards/MindMapCard/MindMapEditor.tsx
 import React from 'react';
 import { allPlugins, MindMap, MindMapTextEditor } from '@xiangfa/mindmap';
-import type { ThemeMode } from '@xiangfa/mindmap';
+import type { MindMapRef, ThemeMode } from '@xiangfa/mindmap';
 import type { ICardProps } from '../types';
 import type { IMindMapCardValue } from './types'
 import Doc from "../../components/lakex/lakex";
@@ -25,11 +25,10 @@ class MindMapEditor extends React.Component<
   ICardProps<IMindMapCardValue>,
   MindMapEditorState
 > {
-  private mindMapRef = React.createRef<any>();
+  private mindMapRef = React.createRef<MindMapRef>();
 
   constructor(props: ICardProps<IMindMapCardValue>) {
     super(props);
-    console.log(props.cardValue)
     this.state = {
       markdown: props.cardValue?.markdown || defaultMarkdown,
       height: props.cardValue.cardHeight || 400,

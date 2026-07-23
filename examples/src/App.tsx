@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { LakexEditor } from '@dlient/lakex-doc-react';
-// @ts-ignore
-import '@dlient/lakex-doc-react/style.css';
+import { LakexEditor, BlockMenuAction } from '@dlient/lakex-doc-react';
 // @ts-ignore
 import './App.css';
 
@@ -9,10 +7,21 @@ function App() {
   const [isDark, setIsDark] = useState(false);
   const [language, setLanguage] = useState<'zh-cn' | 'en-us'>('zh-cn');
   const [content, setContent] = useState("{}")
+  const [lastAction, setLastAction] = useState<string>('');
 
   const handleContentChange = (contents: any[]) => {
-    setContent(contents.find((c) => c.type === 'json').text)
-    console.log('Content changed:', contents.find((c) => c.type === 'json').text);
+    const jsonContent = contents.find((c) => c.type === 'json')?.text;
+    if (jsonContent) {
+      setContent(jsonContent);
+      console.log('Content changed:', jsonContent);
+    }
+  };
+
+  // 块操作回调（用于测试右键菜单动作）
+  const handleBlockAction = (action: BlockMenuAction, data: any) => {
+    const actionText = `${action} -> ${data.blockType}${data.payload ? ` (${data.payload})` : ''}`;
+    setLastAction(actionText);
+    console.log('[BlockAction]', actionText, data);
   };
 
   return (
@@ -34,11 +43,24 @@ function App() {
             <option value="en-us">English</option>
           </select>
         </div>
+        {/* 显示最后一次块操作 */}
+        {lastAction && (
+          <div className="action-toast">
+            操作: {lastAction}
+            <button
+              className="action-close"
+              onClick={() => setLastAction('')}
+            >
+              ×
+            </button>
+          </div>
+        )}
         <div className="editor-container">
           <LakexEditor
             dark={isDark}
             language={language}
             onContentChange={handleContentChange}
+            onBlockAction={handleBlockAction}
           />
         </div>
       </div>

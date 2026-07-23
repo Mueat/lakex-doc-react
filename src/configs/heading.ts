@@ -7,7 +7,7 @@ const DefaultHeadingConfig: HeadingConfig = {
         }
         return url.href + '#' + id;
     },
-    anchor: true,
+    anchor: false,
     folding: true,
 }
 

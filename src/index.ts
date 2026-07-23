@@ -6,6 +6,8 @@
 // don't appear in the .d.ts declaration files.
 import "./assets/antd.css";
 import "./assets/lakex-doc.css";
+import "./components/BlockHoverHandle/BlockHoverHandle.css";
+import "./components/BlockContextMenu/BlockContextMenu.css";
 
 // The framework bundle (ESM). `Doc` is the lakex-doc root object.
 export { default as Doc } from "./components/lakex/lakex";
@@ -79,4 +81,16 @@ export { default as DeafultImageConfig } from "./configs/image";
 export { default as DefaultInputConfig } from "./configs/input";
 export { default as DefaultTocConfig } from "./configs/toc";
 export { default as DefaultViedoConfig } from "./configs/video";
+
+// 块悬浮拖拽手柄（hover 显示 ⋮ 图标，支持拖拽移动和右键菜单）
+export { BlockHoverHandle } from "./components/BlockHoverHandle";
+export type { BlockHoverHandleProps } from "./components/BlockHoverHandle";
+
+// 块右键上下文菜单
+export { BlockContextMenu } from "./components/BlockContextMenu";
+export type {
+  BlockContextMenuProps,
+  MenuItem,
+  BlockMenuAction,
+} from "./components/BlockContextMenu";
 
