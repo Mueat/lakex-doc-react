@@ -114,6 +114,7 @@ export function LakexEditor(props: LakexEditorProps) {
           range.selectNode(el);
           // 
           // editor.kernel.execCommand("selection", { focus: 'start', anchor: 'start', ranges: [editor.engine.transformDOMRange(range)] })
+          // editor.kernel.execCommand("deleteToBlockEnd")
           // range.deleteContents()
           // editor.renderer.execCommand('delete', false);
           var t = editor.engine.transformDOMRange(range),

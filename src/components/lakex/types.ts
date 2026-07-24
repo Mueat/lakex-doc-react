@@ -70,6 +70,23 @@ export interface ImageConfig {
   capturePatterns?: RegExp[];
   /** 作为 isCaptureImageURL 的第二个参数 */
   excludeCapturePatterns?: RegExp[];
+  /**
+   * 图片选中后上方浮动操作栏（cardToolbar）的按钮项。
+   * 每个项必须同时包含 `name` 与 `onClick`；`'|'` 表示分隔线。
+   * onClick 签名：(editor, cardUI, item) => void，其中 cardUI.cardData 为图片卡片数据。
+   * 也可只写 { name, title } 复用框架内置处理器（copy/delete/maximize/widthMode 等）。
+   */
+  miniToolbar?: Array<
+    | "|"
+    | {
+        name: string;
+        title?: string;
+        icon?: string;
+        onClick?: (editor: any, cardUI: any, item: any) => void;
+      }
+  >;
+  /** 浮动工具栏显示时机：'focus' | 'hover' | 'never'（image 默认 'focus'） */
+  showMiniToolbarWhen?: "focus" | "hover" | "never";
 }
 
 // ============================================================================
