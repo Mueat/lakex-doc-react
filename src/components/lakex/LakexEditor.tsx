@@ -15,6 +15,7 @@ import type {TIcon} from "./icon";
 import { BlockHoverHandle } from "../BlockHoverHandle";
 import { BlockContextMenu, BlockMenuAction } from "../BlockContextMenu";
 import { ImageToolbar } from "../plugin/imageToolbar/ImageToolbar";
+import { BookmarkToolbar } from "../plugin/bookmark/BookmarkToolbar";
 import {
   deleteBlock,
   duplicateBlock,
@@ -415,15 +416,19 @@ export function LakexEditor(props: LakexEditorProps) {
         },
         customCard: {
           cards: defaultConfig.customCard.cards.map((c) => converCardConfig(c)) as any,
-        }
+        },
       },
       propsConfigs
     );
 
     const editor = createOpenEditor(containerRef.current, {
       ...merged,
+      // bookmark 配置已写入默认配置（src/configs/editor.ts），
+      // 业务侧可通过 props.config.bookmark 覆盖（detailAction / fetchDetailHandler / pasteLinkConvert）。
       darkMode: props.dark ? true : false,
     });
+
+    
     const parsedCardSelectConfig = editor.plugins?.slash?.option?.getParsedConfig?.(
       'general',
       'cardSelect',
@@ -498,6 +503,16 @@ export function LakexEditor(props: LakexEditorProps) {
     {/* 图片卡片浮动操作栏（点击/悬浮图片时显示在图片正上方） */}
     {editorInstance && (
       <ImageToolbar
+        containerRef={containerRef}
+        editor={editorInstance}
+        language={props.language || 'zh-cn'}
+        dark={props.dark}
+      />
+    )}
+
+    {/* 书签卡片浮动操作栏（点击/悬浮书签时显示在卡片正上方，模式同 ImageToolbar） */}
+    {editorInstance && (
+      <BookmarkToolbar
         containerRef={containerRef}
         editor={editorInstance}
         language={props.language || 'zh-cn'}

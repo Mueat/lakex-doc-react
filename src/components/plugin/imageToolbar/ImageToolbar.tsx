@@ -14,6 +14,7 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import "./ImageToolbar.css";
+import { makeT, ToolbarLang } from "../i18n";
 
 /** 图片卡片对应的自定义元素标签名 */
 const IMAGE_TAG = "NE-CARD";
@@ -23,7 +24,7 @@ export interface ImageToolbarProps {
   containerRef: React.RefObject<HTMLElement | null>;
   /** lakex 编辑器实例（createOpenEditor 返回值） */
   editor: any;
-  language?: "zh-cn" | "en-us";
+  language?: ToolbarLang;
   /** 暗黑模式 */
   dark?: boolean;
 }
@@ -41,15 +42,9 @@ interface ToolbarState {
   mode: "hover" | "selected";
 }
 
-// ──── 样式选项 ────
+// ──── 样式选项（label 在组件内按语言生成，见 styleOptions） ────
 
-const STYLE_OPTIONS = [
-  { value: "none", label: "无样式" },
-  { value: "stroke", label: "图片描边" },
-  { value: "shadow", label: "图片阴影" },
-] as const;
-
-type StyleValue = typeof STYLE_OPTIONS[number]["value"];
+type StyleValue = "none" | "stroke" | "shadow";
 
 // ──── 工具函数 ────
 
@@ -99,13 +94,16 @@ interface ImageLinkPopupProps {
   editor: any;
   blockIdRef: React.MutableRefObject<string>;
   closePopup: () => void;
+  language?: ToolbarLang;
 }
 
 const ImageLinkPopup: React.FC<ImageLinkPopupProps> = ({
   editor,
   blockIdRef,
   closePopup,
+  language = "zh-cn",
 }) => {
+  const t = makeT(language);
   const [link, setLink] = useState("");
   const [external, setExternal] = useState(true); // true=当前页面打开；默认新窗口(=false)
   const cdRef = useRef<any>(null);
@@ -153,7 +151,7 @@ const ImageLinkPopup: React.FC<ImageLinkPopupProps> = ({
       <input
         className="ne-image-toolbar__popup-input"
         type="text"
-        placeholder="请输入网址"
+        placeholder={t("image.link.placeholder")}
         value={link}
         autoFocus
         onChange={(e) => setLink(e.target.value)}
@@ -172,10 +170,10 @@ const ImageLinkPopup: React.FC<ImageLinkPopupProps> = ({
           checked={external}
           onChange={(e) => setExternal(e.target.checked)}
         />
-        <span>新窗口打开</span>
+        <span>{t("image.link.newWindow")}</span>
       </label>
       <button type="button" className="ne-image-toolbar__popup-ok" onClick={apply}>
-        确定
+        {t("common.ok")}
       </button>
     </div>
   );
@@ -189,13 +187,16 @@ interface ImageSizePopupProps {
   editor: any;
   blockIdRef: React.MutableRefObject<string>;
   closePopup: () => void;
+  language?: ToolbarLang;
 }
 
 const ImageSizePopup: React.FC<ImageSizePopupProps> = ({
   editor,
   blockIdRef,
   closePopup,
+  language = "zh-cn",
 }) => {
+  const t = makeT(language);
   const [width, setWidth] = useState("");
   const [height, setHeight] = useState("");
   const originalW = useRef(0);
@@ -285,7 +286,7 @@ const ImageSizePopup: React.FC<ImageSizePopupProps> = ({
     <div className="ne-image-toolbar__popup ne-image-toolbar__popup--size" onClick={(e) => e.stopPropagation()}>
       {/* 宽 / 高 输入行 */}
       <div className="ne-image-toolbar__size-row">
-        <label className="ne-image-toolbar__size-label">宽</label>
+        <label className="ne-image-toolbar__size-label">{t("image.size.width")}</label>
         <input
           className="ne-image-toolbar__size-input"
           type="text"
@@ -297,7 +298,7 @@ const ImageSizePopup: React.FC<ImageSizePopupProps> = ({
             else if (e.key === "Escape") { closePopup(); }
           }}
         />
-        <label className="ne-image-toolbar__size-label">高</label>
+        <label className="ne-image-toolbar__size-label">{t("image.size.height")}</label>
         <input
           className="ne-image-toolbar__size-input"
           type="text"
@@ -325,7 +326,7 @@ const ImageSizePopup: React.FC<ImageSizePopupProps> = ({
       </div>
       {/* 确定 */}
       <button type="button" className="ne-image-toolbar__popup-ok" onClick={apply}>
-        确定
+        {t("common.ok")}
       </button>
     </div>
   );
@@ -391,7 +392,7 @@ const TOOLBAR_ITEMS: ToolbarEntry[] = [
     name: "rotation",
     // title: "旋转",
     icon: "ne-t-image-rotation",
-    tip:"逆时针选择90度",
+    tip:"image.rotation.tip",
     customAction: (editor, blockId) => {
       const cd = getCardNodeData(editor, blockId);
       if (!cd) return;
@@ -412,7 +413,7 @@ const TOOLBAR_ITEMS: ToolbarEntry[] = [
     name: "crop",
     // title: "剪切",
     icon: "ne-t-image-crop",
-    tip: '剪切',
+    tip: 'image.crop.tip',
     // 原生裁切通道：调用 cardUI._setCroping(true) 进入裁切模式
     // （注意：本构建中原生 crop 通道是空桩，_cropImageOp 恒为 null，
     //  调用后不会真正进入可用的裁切交互，仅保留入口）
@@ -435,9 +436,9 @@ const TOOLBAR_ITEMS: ToolbarEntry[] = [
   },
   {
     name: "size",
-    title: "宽高",
+    title: "image.size.title",
     icon: "ne-t-image-size",
-    tip: '图片尺寸',
+    tip: 'image.size.tip',
     hasDropdown: true,
     // 设置图片宽高，在弹出框中填写高度和宽度
     // 可以选择原始宽高的百分比
@@ -447,7 +448,7 @@ const TOOLBAR_ITEMS: ToolbarEntry[] = [
     name: "link",
     // title: "链接",
     icon: "ne-t-link",
-    tip: '链接',
+    tip: 'image.link.tip',
     hasDropdown: true,
     customAction: () => {
       /* 由弹出层处理，此处仅用于打开 popup */
@@ -455,9 +456,9 @@ const TOOLBAR_ITEMS: ToolbarEntry[] = [
   },
   {
     name: "description",
-    title: "描述",
+    title: "image.desc.title",
     icon: "ne-t-image-title",
-    tip: '图片描述',
+    tip: 'image.desc.tip',
     customAction: (editor, blockId) => {
       const cd = getCardNodeData(editor, blockId);
       if (!cd) return;
@@ -478,9 +479,9 @@ const TOOLBAR_ITEMS: ToolbarEntry[] = [
   "|",
   {
     name: "style",
-    title: "样式",
+    title: "image.style.title",
     icon: "ne-t-image-style",
-    tip: '图片样式',
+    tip: 'image.style.tip',
     hasDropdown: true,
     customAction: () => {
       /* 由弹出层处理 */
@@ -515,6 +516,17 @@ export const ImageToolbar = (props: ImageToolbarProps) => {
   const cardUIRef = useRef<any>(null);
   const blockIdRef = useRef<string>("");
   const modeRef = useRef<"hover" | "selected">("hover");
+
+  // ──── 多语言文案 ────
+  const t = useMemo(() => makeT(language), [language]);
+  const styleOptions = useMemo(
+    () => [
+      { value: "none" as StyleValue, label: t("image.style.none") },
+      { value: "stroke" as StyleValue, label: t("image.style.stroke") },
+      { value: "shadow" as StyleValue, label: t("image.style.shadow") },
+    ],
+    [t]
+  );
 
   // ──── 重新定位 ────
   // 工具栏通过 createPortal 渲染进 .ne-editor-wrap（滚动容器），是滚动内容的一部分，
@@ -756,7 +768,7 @@ export const ImageToolbar = (props: ImageToolbarProps) => {
         typeof cd.cardData.getStyle === "function"
           ? cd.cardData.getStyle()
           : "";
-      currentStyle = STYLE_OPTIONS.some((o) => o.value === raw)
+      currentStyle = styleOptions.some((o) => o.value === raw)
         ? (raw as StyleValue)
         : "none";
     } catch {
@@ -765,7 +777,7 @@ export const ImageToolbar = (props: ImageToolbarProps) => {
 
     return (
       <div className="ne-image-toolbar__popup ne-image-toolbar__popup--menu">
-        {STYLE_OPTIONS.map((opt) => (
+        {styleOptions.map((opt) => (
           <button
             key={opt.value}
             type="button"
@@ -879,7 +891,7 @@ export const ImageToolbar = (props: ImageToolbarProps) => {
               className={`ne-image-toolbar__btn${
                 isActive ? " ne-image-toolbar__btn--active" : ""
               }${btn.hasDropdown ? " ne-image-toolbar__btn--dropdown" : ""}`}
-              title={btn.title}
+              title={t(btn.tip || "")}
               onClick={(e) => {
                 e.stopPropagation();
                 handleButtonClick(btn, idx);
@@ -892,7 +904,7 @@ export const ImageToolbar = (props: ImageToolbarProps) => {
                   </svg>
                 </span>
               )}
-              {btn.title && <span className="ne-image-toolbar__label">{btn.title}</span>}
+              {btn.title && <span className="ne-image-toolbar__label">{t(btn.title)}</span>}
               {btn.hasDropdown && (
                 <span className="ne-ui-toolbar-arrow-down">
                 </span>
@@ -907,6 +919,7 @@ export const ImageToolbar = (props: ImageToolbarProps) => {
                     editor={editor}
                     blockIdRef={blockIdRef}
                     closePopup={closePopup}
+                    language={language}
                   />
                 )}
                 {btn.name === "size" && (
@@ -914,6 +927,7 @@ export const ImageToolbar = (props: ImageToolbarProps) => {
                     editor={editor}
                     blockIdRef={blockIdRef}
                     closePopup={closePopup}
+                    language={language}
                   />
                 )}
                 {btn.name === "style" && renderStylePopup()}

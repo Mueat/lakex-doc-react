@@ -525,6 +525,23 @@ export interface CustomCardsConfig {
   cards: CustomCard<any>[]
 }
 
+export interface BookmarkConfigFetchResult {
+  icon: string,
+  image: string,
+  title: string,
+  desc: string,
+  url: string,
+}
+
+export interface BookmarkConfig {
+  // 远端抓取的API地址
+  detailAction?: string;
+  // 自定义抓取
+  fetchDetailHandler?: (url: string) => Promise<BookmarkConfigFetchResult>;
+  // 是否启用链接转Bookmark
+  pasteLinkConvert?: boolean
+}
+
 // ============================================================================
 // createOpenEditor 的完整配置对象
 // ============================================================================
@@ -574,6 +591,8 @@ export interface LakexEditorConfig {
 
   // 自定义卡片（内部默认包含 mindMapCardConfig
   customCard?: CustomCardsConfig;
+  // Bookmark配置，配置后链接可以转为书签卡片样式
+  bookmark?: BookmarkConfig;
   
 }
 
