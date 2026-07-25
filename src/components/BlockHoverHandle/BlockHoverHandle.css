@@ -20,7 +20,47 @@
   -webkit-user-select: none;
   /* 初始不可见，通过 fade-in 动画显示 */
   opacity: 0;
+  outline: none;
   /* animation: ne-block-handle-fade-in 0.15s ease forwards; */
+}
+
+.ne-block-handle-tooltip {
+  position: absolute;
+  /* 外层左侧 6px padding + 24px 可见按钮的一半：以按钮中心为锚点。 */
+  left: 18px;
+  top: calc(100% + 8px);
+  z-index: 1200;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(38, 38, 38, 0.94);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -2px);
+  transition:
+    opacity 0.12s ease-out 0.3s,
+    transform 0.12s ease-out 0.3s,
+    visibility 0s linear 0.42s;
+}
+
+.ne-block-hover-handle:hover .ne-block-handle-tooltip,
+.ne-block-hover-handle:focus-visible .ne-block-handle-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition-delay: 0.3s, 0.3s, 0s;
+}
+
+.ne-block-hover-handle:active .ne-block-handle-tooltip {
+  opacity: 0;
+  visibility: hidden;
+  transition-delay: 0s;
 }
 
 @keyframes ne-block-handle-fade-in {
@@ -36,7 +76,8 @@
 
 
 
-.ne-block-hover-handle:hover .ne-block-handle-inner {
+.ne-block-hover-handle:hover .ne-block-handle-inner,
+.ne-block-hover-handle:focus-visible .ne-block-handle-inner {
   background-color: #f0f2f5;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
@@ -59,7 +100,7 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 4px;
+  border-radius: 5px;
   background-color: var(--lakex-editor-background, #fff);
   transition: all 0.15s ease;
 }

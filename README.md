@@ -70,6 +70,8 @@ The `<LakexEditor>` component accepts the following props:
 | `onContentChange` | `(value: LakexEditorContent[]) => void` | — | Content change callback. Triggered on every edit, returns an array of 5 format snapshots. |
 | `config` | `Partial<LakexEditorConfig>` | — | Underlying config passed to `createOpenEditor`, deep merged with built-in defaults. |
 | `disableMergeConfig` | `boolean` | `false` | Disable config merging. When enabled, built-in defaults are ignored, only `config` prop is used. |
+| `blockMenu` | `boolean` | `true` | Show the YuQue-style block handle on hover. The handle can be dragged to reorder blocks or clicked to open the block menu. |
+| `onBlockAction` | `(action, data) => void` | — | Called after a block-menu action. Use the `aiOutline` action to connect your own AI writing service. |
 
 ### `LakexEditorContent`
 
@@ -99,6 +101,24 @@ The `onContentChange` callback returns an array in the above format, containing 
 
 // Switch documents: change id to reload
 <LakexEditor id={currentDocId} />
+```
+
+### Block handle and menu
+
+Hover a paragraph, heading, list item, quote, code block, media block, table, or
+custom block card to reveal the six-dot handle. Drag it to reorder blocks, or
+click it to open actions such as turn into, delete, copy, cut, indent, copy link,
+and add above/below.
+
+```tsx
+<LakexEditor
+  blockMenu
+  onBlockAction={(action, { blockElement, payload }) => {
+    if (action === 'aiOutline') {
+      openAiWriter({ blockId: blockElement.id, method: payload });
+    }
+  }}
+/>
 ```
 
 ---

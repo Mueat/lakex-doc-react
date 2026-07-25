@@ -77,6 +77,8 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
 
   // 暂停/恢复 mouseout（菜单打开时不隐藏手柄）
   const mouseoutPausedRef = useRef(false);
+  // 鼠标已经进入手柄时，任何来自编辑器容器的延迟隐藏都应失效
+  const handleHoveredRef = useRef(false);
   // 拖拽进行中：期间忽略 mouseover/mouseout，避免干扰拖拽并减少重渲染
   const isDraggingRef = useRef(false);
 
@@ -107,10 +109,15 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       }
       const tagName = el.tagName.toUpperCase();
 
-      if (tagName && BLOCK_TAGS.includes(tagName as any)) {
+      const isKnownBlock = tagName && BLOCK_TAGS.includes(tagName as any);
+      const isRenderUnit = el.getAttribute?.('ne-role') === 'render-unit';
+      if (isKnownBlock || isRenderUnit) {
         if (el.parentElement) {
           const ptagName = el.parentElement.tagName.toLocaleUpperCase()
-          if (BLOCK_TAGS.includes(ptagName as any) && el.parentElement.firstElementChild.id === el.id) {
+          if (
+            BLOCK_TAGS.includes(ptagName as any)
+            && el.parentElement.firstElementChild?.id === el.id
+          ) {
             return el.parentElement
           }
         }
@@ -160,21 +167,8 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
     // 标题块（NE-H1~H6）左侧会渲染锚点(anchor)/折叠(folding)按钮，需相应左移手柄
     const tag = blockEl.tagName.toUpperCase();
     let offset = 0;
-    let height = 24;
-    switch(tag){
-      case 'NE-H1':
-        height=36;
-        break;
-      case 'NE-H2':
-        height=32;
-        break;
-      case 'NE-H3':
-        height=28;
-        break;
-      default:
-        height=24
-      
-    }
+    const handleSize = 24;
+    const hitAreaWidth = 34;
     if (['NE-H1', 'NE-H2', 'NE-H3', 'NE-H4', 'NE-H5', 'NE-H6'].includes(tag)) {
       const anchor = heading?.anchor ?? false;
       const folding = heading?.folding ?? true;
@@ -185,10 +179,10 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
     }
     setHandleStyle({
       position: 'fixed',
-      left: `${blockRect.left - 36 - offset}px`,
-      top: `${blockRect.top+1}px`,
-      width: '36px',
-      height,
+      left: `${blockRect.left - hitAreaWidth - offset}px`,
+      top: `${blockRect.top + Math.max(0, (blockRect.height - handleSize) / 2)}px`,
+      width: `${hitAreaWidth}px`,
+      height: `${handleSize}px`,
       zIndex: 100,
     });
   }, [heading]);
@@ -206,11 +200,22 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
   }, [getBlockTypeName, updateHandlePosition]);
 
   const hideHandle = useCallback(() => {
+    if (hideTimerRef.current !== null) {
+      clearTimeout(hideTimerRef.current);
+    }
     hideTimerRef.current = window.setTimeout(() => {
+      hideTimerRef.current = null;
+      if (
+        handleHoveredRef.current
+        || mouseoutPausedRef.current
+        || isDraggingRef.current
+      ) {
+        return;
+      }
       setBlockHighlight(false);
       setVisible(false);
       setHoverState({ blockElement: null, blockId: null, blockType: null });
-    }, 100);
+    }, 220);
   }, [setBlockHighlight]);
 
   // ========== 鼠标悬浮检测 ==========
@@ -218,7 +223,7 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
     const container = containerRef.current;
     if (!container) return;
 
-    const handleMouseOver = (e: MouseEvent) => {
+    const handleMouseMove = (e: MouseEvent) => {
       // 拖拽进行中：忽略悬浮检测（已在拖拽，无需再显示/隐藏手柄）
       if (isDraggingRef.current) return;
 
@@ -235,34 +240,42 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       if (blockEl) {
         showHandle(blockEl);
       } else {
+        // 从块正文移向行首按钮时会经过左侧 gutter。该区域虽然不属于
+        // block DOM，但视觉上是块与手柄之间的连续通道，不能在这里隐藏。
+        const currentBlock = hoverStateRef.current.blockElement;
+        const handle = handleRef.current;
+        if (currentBlock && handle && visibleRef.current) {
+          const blockRect = currentBlock.getBoundingClientRect();
+          const handleRect = handle.getBoundingClientRect();
+          const corridorLeft = Math.min(handleRect.left, blockRect.left) - 6;
+          const corridorRight = Math.max(handleRect.right, blockRect.left) + 6;
+          const corridorTop = Math.min(handleRect.top, blockRect.top) - 6;
+          const corridorBottom = Math.max(handleRect.bottom, blockRect.bottom) + 6;
+          if (
+            e.clientX >= corridorLeft
+            && e.clientX <= corridorRight
+            && e.clientY >= corridorTop
+            && e.clientY <= corridorBottom
+          ) {
+            if (hideTimerRef.current !== null) {
+              clearTimeout(hideTimerRef.current);
+              hideTimerRef.current = null;
+            }
+            return;
+          }
+        }
         hideHandle();
       }
     };
 
-    const handleMouseOut = (e: MouseEvent) => {
+    const handleMouseLeave = (e: MouseEvent) => {
       // 拖拽进行中：忽略
       if (isDraggingRef.current) return;
       if (mouseoutPausedRef.current) return;
 
-      const t = e.target as any
-      let inSide = false;
-      if (t.closest) {
-
-        BLOCK_TAGS.forEach((tag) => {
-          if (inSide) return;
-          if (t.closest(tag.toLocaleLowerCase())) {
-            inSide = true
-          }
-        })
-      }
-      if(inSide) return;
-
       const relatedTarget = e.relatedTarget as Node | null;
-      if (relatedTarget) {
-        // 离开的仍是同一块内部（沿 DOM 向上可命中同一块），不隐藏
-        const blockEl = resolveBlockNode(e.target, e.clientX, e.clientY);
-        if (blockEl && blockEl.contains(relatedTarget)) return;
-      }
+      if (relatedTarget && handleRef.current?.contains(relatedTarget)) return;
+      if (relatedTarget && container.contains(relatedTarget)) return;
       hideHandle();
     };
 
@@ -283,13 +296,13 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       }
     };
 
-    container.addEventListener('mouseover', handleMouseOver, true);
-    container.addEventListener('mouseout', handleMouseOut, true);
+    container.addEventListener('mousemove', handleMouseMove, true);
+    container.addEventListener('mouseleave', handleMouseLeave, true);
     container.addEventListener('contextmenu', handleContextMenu, true);
 
     return () => {
-      container.removeEventListener('mouseover', handleMouseOver, true);
-      container.removeEventListener('mouseout', handleMouseOut, true);
+      container.removeEventListener('mousemove', handleMouseMove, true);
+      container.removeEventListener('mouseleave', handleMouseLeave, true);
       container.removeEventListener('contextmenu', handleContextMenu, true);
       if (hideTimerRef.current !== null) {
         clearTimeout(hideTimerRef.current);
@@ -345,6 +358,9 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
     const srcRect = draggedEl.getBoundingClientRect();
     const grabOffsetX = startX - srcRect.left;
     const grabOffsetY = startY - srcRect.top;
+    const dragOverlay = handleRef.current?.parentElement ?? document.body;
+    const previousPointerEvents = draggedEl.style.pointerEvents;
+    const previousBodyCursor = document.body.style.cursor;
 
     /** 蓝色插入线：松手后块的落点 */
     const createIndicator = () => {
@@ -352,10 +368,7 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       indicator = document.createElement('div');
       indicator.className = 'ne-block-drag-indicator';
       // 必须挂到 DOM 上才能显示（之前漏了这一步，导致蓝色线不显示）
-      const overlay = (containerRef.current?.querySelector('.ne-engine') as HTMLElement | null)
-        ?? containerRef.current
-        ?? document.body;
-      overlay.appendChild(indicator);
+      dragOverlay.appendChild(indicator);
       excludeSet.add(indicator);
     };
 
@@ -365,6 +378,9 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       ghost = draggedEl.cloneNode(true) as HTMLElement;
       ghost.className = `${draggedEl.className} ne-block-drag-ghost`;
       ghost.removeAttribute('id');
+      ghost.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
+      ghost.setAttribute('aria-hidden', 'true');
+      ghost.setAttribute('contenteditable', 'false');
       ghost.style.cssText = `
         position: fixed;
         left: 0;
@@ -375,11 +391,9 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
         pointer-events: none;
         box-sizing: border-box;
       `;
-      // 副本挂载到编辑器的 overlay 容器内（而非 body），避免污染全局层级
-      const overlay = (containerRef.current?.querySelector('.ne-engine') as HTMLElement | null)
-        ?? containerRef.current
-        ?? document.body;
-      overlay.appendChild(ghost);
+      // 预览必须挂在 contenteditable 之外，否则 Lakex 的 MutationObserver
+      // 会把克隆节点误认为真实文档变更。
+      dragOverlay.appendChild(ghost);
       excludeSet.add(ghost);
     };
 
@@ -409,9 +423,9 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
     /** 退出拖拽模式：恢复样式、清理元素 */
     const exitDragMode = () => {
       draggedEl.classList.remove('ne-block-drag-source');
-      draggedEl.style.pointerEvents = '';
+      draggedEl.style.pointerEvents = previousPointerEvents;
       // 复位光标
-      document.body.style.cursor = '';
+      document.body.style.cursor = previousBodyCursor;
       if (indicator && indicator.parentNode) indicator.remove();
       indicator = null;
       if (ghost && ghost.parentNode) ghost.remove();
@@ -457,7 +471,7 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
         top: ${lineTop}px;
         width: ${rect.width}px;
         height: 2px;
-        background: var(--lakex-editor-text-link);
+        background: var(--lakex-editor-text-link, #1677ff);
         border-radius: 1px;
         z-index: 999;
         pointer-events: none;
@@ -528,13 +542,12 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       }
 
       if (!dataSyncOk) {
-        // 方式二：纯 DOM 移动（即时视觉反馈，数据层可能不同步）
-        if (before) {
-          targetBlock.parentNode?.insertBefore(draggedEl, targetBlock);
-        } else {
-          targetBlock.parentNode?.insertBefore(draggedEl, targetBlock.nextSibling);
-        }
+        // 不直接挪动 contenteditable DOM：那会造成画面与 Lakex 数据树不同步。
+        console.warn('[LakexEditor] 无法移动该块，已保持原位置');
       }
+
+      setVisible(false);
+      setHoverState({ blockElement: null, blockId: null, blockType: null });
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -570,9 +583,30 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       style={{
         ...handleStyle,
         opacity: (!visible || !hoverState.blockElement) ? 0 : 1,
+        pointerEvents: (!visible || !hoverState.blockElement) ? 'none' : 'auto',
       }}
-      onMouseDown={startDrag}
+      role="button"
+      tabIndex={visible ? 0 : -1}
+      aria-label={language === 'en-us' ? 'Click or drag' : '可点击和拖拽'}
+      onMouseDown={(event) => {
+        startDrag(event);
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const blockElement = hoverStateRef.current.blockElement;
+        if (!blockElement || !onContextMenu) return;
+        event.preventDefault();
+        mouseoutPausedRef.current = true;
+        const rect = handleRef.current?.getBoundingClientRect();
+        onContextMenu(blockElement, {
+          clientX: rect?.left ?? 0,
+          clientY: rect?.bottom ?? 0,
+          preventDefault() {},
+          stopPropagation() {},
+        } as unknown as MouseEvent);
+      }}
       onMouseEnter={() => {
+        handleHoveredRef.current = true;
         if (hideTimerRef.current !== null) {
           clearTimeout(hideTimerRef.current);
           hideTimerRef.current = null;
@@ -581,10 +615,11 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
         setBlockHighlight(true);
       }}
       onMouseLeave={() => {
+        handleHoveredRef.current = false;
         // 鼠标离开手柄：取消对应块节点的高亮
         setBlockHighlight(false);
+        hideHandle();
       }}
-      title={language === 'en-us' ? 'Drag to move' : '拖动以移动'}
     >
       <span className="ne-block-handle-inner">
         <svg
@@ -602,6 +637,9 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
           <circle cx="10" cy="8" r="1.5" fill="currentColor" />
           <circle cx="10" cy="13" r="1.5" fill="currentColor" />
         </svg>
+      </span>
+      <span className="ne-block-handle-tooltip" role="tooltip">
+        {language === 'en-us' ? 'Click or drag' : '可点击和拖拽'}
       </span>
     </div>
   );

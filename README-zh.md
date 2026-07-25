@@ -61,6 +61,8 @@ export default function App() {
 | `onContentChange` | `(value: LakexEditorContent[]) => void` | — | 内容变化回调。每次编辑都会触发，回传 5 种格式的内容数组。 |
 | `config` | `Partial<LakexEditorConfig>` | — | 透传给 `createOpenEditor` 的底层配置，会与内置默认配置深度合并。 |
 | `disableMergeConfig` | `boolean` | `false` | 禁用配置合并。启用后内置默认配置不生效，仅使用 `config` prop 传入的配置。 |
+| `blockMenu` | `boolean` | `true` | 是否显示语雀风格的行首悬浮按钮；支持拖拽排序和点击打开块菜单。 |
+| `onBlockAction` | `(action, data) => void` | — | 块菜单动作完成后的回调；可通过 `aiOutline` 动作接入业务侧 AI 写作服务。 |
 
 ### `LakexEditorContent`
 
@@ -90,6 +92,21 @@ interface LakexEditorContent {
 
 // 切换文档：改变 id 即可重新加载
 <LakexEditor id={currentDocId} />
+```
+
+### 行首按钮和块菜单
+
+鼠标悬浮段落、标题、列表项、引用、代码块、媒体、表格或块卡片时，行首会显示六点按钮。拖拽按钮可调整块顺序，点击按钮可执行转换、删除、复制、剪切、缩进、复制链接以及在上下方新增等操作。
+
+```tsx
+<LakexEditor
+  blockMenu
+  onBlockAction={(action, { blockElement, payload }) => {
+    if (action === 'aiOutline') {
+      openAiWriter({ blockId: blockElement.id, method: payload });
+    }
+  }}
+/>
 ```
 
 ---

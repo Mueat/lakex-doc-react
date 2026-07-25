@@ -10,19 +10,89 @@ import type {
   CustomCard,
 } from "./types";
 import GetDefaultEditorConfig from "../../configs/editor";
-import React from "react";
 import SvgIcon from "./icon";
 import type {TIcon} from "./icon";
 import { BlockHoverHandle } from "../BlockHoverHandle";
 import { BlockContextMenu, BlockMenuAction } from "../BlockContextMenu";
 import { ImageToolbar } from "../plugin/imageToolbar/ImageToolbar";
 import {
-  moveBlock,
   deleteBlock,
   duplicateBlock,
   convertBlock,
   insertBlock,
 } from "../../utils/blockDoc";
+
+function selectBlockInEditor(editor: any, blockElement: HTMLElement): boolean {
+  try {
+    const domRange = document.createRange();
+    domRange.selectNodeContents(blockElement);
+    const modelRange = editor?.engine?.transformDOMRange?.(domRange);
+    if (!modelRange) return false;
+    editor.kernel.execCommand("selection", {
+      focus: "end",
+      anchor: "start",
+      ranges: [modelRange],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function runNativeConvert(editor: any, blockElement: HTMLElement, target: string): boolean {
+  if (!selectBlockInEditor(editor, blockElement)) return false;
+
+  try {
+    if (/^(p|h[1-6])$/.test(target)) {
+      editor.execCommand("style", target);
+    } else {
+      const command: Record<string, string> = {
+        quote: "quote",
+        ul: "unorderedList",
+        ol: "orderedList",
+        taskList: "taskList",
+        codeblock: "codeblock",
+        hr: "hr",
+        callout: "alert",
+        columns: "columns2",
+        collapse: "collapse",
+      };
+      if (!command[target]) return false;
+      editor.execCommand(command[target]);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function copyDomBlock(editor: any, blockElement: HTMLElement): boolean {
+  try {
+    const range = document.createRange();
+    range.selectNode(blockElement);
+    const result = editor?.renderer?.execCommand?.("copy", range);
+    return result !== false;
+  } catch {
+    return false;
+  }
+}
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    return copied;
+  }
+}
 
 function mergeConfig(
   defaults: LakexEditorConfig,
@@ -68,6 +138,10 @@ export function LakexEditor(props: LakexEditorProps) {
   // editor 实例的 state 镜像：用于触发悬浮手柄 / 菜单的挂载与重渲染
   // （仅用 ref 不会触发渲染，会导致 BlockHoverHandle 永不挂载）
   const [editorInstance, setEditorInstance] = useState<any>(null);
+  const [cardSelectConfig, setCardSelectConfig] = useState<{
+    groups?: unknown[];
+    [key: string]: unknown;
+  } | null>(null);
   // 悬浮手柄的 DOM 引用，用于在菜单关闭时调用 __resumeHover 恢复 mouseout 监听
   const hoverHandleRef = useRef<HTMLDivElement>(null);
 
@@ -84,25 +158,8 @@ export function LakexEditor(props: LakexEditorProps) {
     blockElement: null,
   });
 
-  // 菜单中的中文标签 -> text/lake 文档树中的节点 type 映射
-  const LABEL_TO_TYPE: Record<string, string> = {
-    '段落': 'p',
-    '标题 1': 'h1',
-    '标题 2': 'h2',
-    '标题 3': 'h3',
-    '引用': 'quote',
-    '无序列表': 'bullet_list',
-    '有序列表': 'ordered_list',
-    '任务列表': 'task_list',
-    '代码块': 'codeblock',
-    '分割线': 'hr',
-    '高亮块': 'callout',
-    '图片': 'image',
-    '表格': 'table',
-  };
-
   // 处理右键菜单动作
-  const handleMenuAction = useCallback((action: BlockMenuAction, data: { blockElement: HTMLElement; blockType: string; payload?: string }) => {
+  const handleMenuAction = useCallback(async (action: BlockMenuAction, data: { blockElement: HTMLElement; blockType: string; payload?: string }) => {
     const editor = editorRef.current;
     if (!editor || !data.blockElement) return;
 
@@ -132,53 +189,50 @@ export function LakexEditor(props: LakexEditorProps) {
         break;
       }
       case 'copy': {
-        const range = document.createRange();
-        const el = document.getElementById(blockId);
-        if (el) {
-          range.selectNode(el);
-          editor.renderer.execCommand('copy', range);
+        if (!copyDomBlock(editor, data.blockElement)) {
+          await copyText(data.blockElement.innerText || data.blockElement.textContent || "");
         }
         break;
       }
       case 'cut': {
-        // 剪切块：复制到系统剪贴板后删除原块
-        const range = document.createRange();
-        const el = document.getElementById(blockId);
-        if (el) {
-          range.selectNode(el);
-          editor.renderer.execCommand('cut', range);
+        const copied = copyDomBlock(editor, data.blockElement)
+          || await copyText(data.blockElement.innerText || data.blockElement.textContent || "");
+        if (copied && blockId && document.getElementById(blockId)) {
           deleteBlock(editor, blockId);
         }
         break;
       }
       case 'convert': {
-        // 转换块类型
         if (blockId && data.payload) {
-          const targetType = LABEL_TO_TYPE[data.payload] || data.payload;
-          const ok = convertBlock(editor, blockId, targetType);
+          const ok = runNativeConvert(editor, data.blockElement, data.payload)
+            || convertBlock(editor, blockId, data.payload);
           if (!ok) {
-            console.warn('[LakexEditor] 转换块类型失败，请通过 onBlockAction 接入框架原生命令:', data.payload);
+            console.warn('[LakexEditor] 转换块类型失败:', data.payload);
           }
         }
         break;
       }
       case 'indent':
       case 'outdent': {
-        // 缩进 / 取消缩进：文档树层面无法直接表达（依赖父列表结构），
-        // 优先交给业务方在 onBlockAction 中接入框架原生能力。
-        if (!props.onBlockAction) {
-          console.warn(`[LakexEditor] ${action} 需要框架原生命令，请通过 onBlockAction 接入`);
+        try {
+          selectBlockInEditor(editor, data.blockElement);
+          editor.execCommand(action);
+        } catch {
+          console.warn(`[LakexEditor] ${action} 仅适用于支持缩进的块`);
         }
         break;
       }
       case 'addAfter':
       case 'addBefore': {
-        // 在块下方/上方添加新块
         if (blockId && data.payload) {
-          const newType = LABEL_TO_TYPE[data.payload] || data.payload;
-          const ok = insertBlock(editor, blockId, action === 'addAfter' ? 'after' : 'before', newType);
+          const ok = insertBlock(
+            editor,
+            blockId,
+            action === 'addAfter' ? 'after' : 'before',
+            data.payload === 'cardSelect' ? 'p' : data.payload,
+          );
           if (!ok) {
-            console.warn('[LakexEditor] 添加块失败，请通过 onBlockAction 接入框架原生命令:', data.payload);
+            console.warn('[LakexEditor] 添加块失败:', data.payload);
           }
         }
         break;
@@ -190,6 +244,17 @@ export function LakexEditor(props: LakexEditorProps) {
         }
         break;
       }
+      case 'copyLink': {
+        if (blockId) {
+          const url = new URL(window.location.href);
+          url.hash = blockId;
+          await copyText(url.toString());
+        }
+        break;
+      }
+      case 'aiOutline':
+        // 由业务层接入具体 AI 服务；下方的 onBlockAction 会携带当前块。
+        break;
       default:
         console.warn('[LakexEditor] 未处理的菜单动作:', action);
     }
@@ -224,6 +289,60 @@ export function LakexEditor(props: LakexEditorProps) {
     if (handleEl && typeof (handleEl as any).__resumeHover === 'function') {
       (handleEl as any).__resumeHover();
     }
+  }, []);
+
+  const handleCardSelect = useCallback((
+    item: any,
+    args: any[],
+    blockElement: HTMLElement,
+  ) => {
+    const editor = editorRef.current;
+    const blockId = blockElement.getAttribute('id');
+    if (!editor || !blockId || !insertBlock(editor, blockId, 'after', 'p')) {
+      console.warn('[LakexEditor] 无法在当前块下方创建卡片插入位置');
+      return;
+    }
+
+    // setDocument 会重建块 DOM；下一帧选中新段落后，按 Lakex 原生
+    // CardSelect 的执行规则派发同一组插件事件。
+    window.setTimeout(() => {
+      const sourceBlock = document.getElementById(blockId);
+      const insertionBlock = sourceBlock?.nextElementSibling as HTMLElement | null;
+      if (!insertionBlock || !selectBlockInEditor(editor, insertionBlock)) {
+        console.warn('[LakexEditor] 无法定位到新建的下方段落');
+        return;
+      }
+
+      const normalizedArgs = item?.type === 'TableItem'
+        ? [{
+            col: args?.[0]?.col || 3,
+            row: args?.[0]?.row || 3,
+          }]
+        : args;
+
+      if (item?.type === 'CommandItem') {
+        if (typeof item.execute === 'function') {
+          item.execute();
+        } else if (item.commandName && editor.queryCommandEnabled(item.commandName)) {
+          editor.execCommand(item.commandName, item.value);
+        }
+      } else if (item?.type !== 'PageItem') {
+        const detail = {
+          item,
+          name: item?.name,
+          args: item?.type === 'SubMenu' ? undefined : normalizedArgs,
+          inputValue: '',
+        };
+        editor.emitPluginEvent('insertCardByUI', detail);
+        editor.emitPluginEvent(`insertCardByUI:${item?.name}`, detail);
+      }
+
+      editor.emitEvent?.('userAction', {
+        type: 'insertCard',
+        name: item?.label,
+        source: 'blockMenu',
+      });
+    }, 16);
   }, []);
 
   useEffect(() => {
@@ -305,6 +424,11 @@ export function LakexEditor(props: LakexEditorProps) {
       ...merged,
       darkMode: props.dark ? true : false,
     });
+    const parsedCardSelectConfig = editor.plugins?.slash?.option?.getParsedConfig?.(
+      'general',
+      'cardSelect',
+    );
+    setCardSelectConfig(parsedCardSelectConfig || null);
 
     // 设置内容
     if (content) {
@@ -359,7 +483,7 @@ export function LakexEditor(props: LakexEditorProps) {
     <div className={props.dark ? 'lakex-dark-theme ne-typography-classic':'lakex-default-theme ne-typography-classic'}>
     
     {/* 块悬浮拖拽手柄 */}
-    {editorInstance && (
+    {props.blockMenu !== false && editorInstance && (
       <BlockHoverHandle
         ref={hoverHandleRef as any}
         containerRef={containerRef}
@@ -383,14 +507,17 @@ export function LakexEditor(props: LakexEditorProps) {
 
     {/* 右键上下文菜单 */}
     <BlockContextMenu
-      visible={contextMenuState.visible}
+      visible={props.blockMenu !== false && contextMenuState.visible}
       position={contextMenuState.position}
       blockType={contextMenuState.blockType}
       blockElement={contextMenuState.blockElement}
       editor={editorInstance}
       language={props.language || 'zh-cn'}
+      dark={props.dark}
       onClose={closeContextMenu}
       onAction={handleMenuAction}
+      cardSelectConfig={cardSelectConfig}
+      onCardSelect={handleCardSelect}
     />
     </div>
     </>

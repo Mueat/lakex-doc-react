@@ -1,80 +1,143 @@
-// src/utils/blockDoc.ts
+// 通过 Lakex 的 `json` 文档树操作块节点。
 //
-// 通过 lakex 编辑器的 text/lake 文档树（JSON）来操作块节点。
-// 这是与框架版本无关的可靠方式：getDocument('text/lake') 与
-// setDocument('text/lake', json) 在 LakexEditor 的 dark/language 重建逻辑中
-// 已被验证可以安全往返。
+// Lakex 的真实 JSON 输出使用 DOM-like 结构：
+//   { type: 'element', name: 'p', id, attrs: {}, children: [...] }
+//   { type: 'text', name: '#text', id, attrs: {}, data: '...' }
 //
-// 所有读写都基于「纯 JSON 对象」：
-//   - readDoc(editor)   -> 读取并返回解析后的 JSON 文档树（{ type, children/content: [...] }）
-//   - writeDoc(editor, doc) -> 将 JSON 文档树序列化后写回编辑器
+// 文档也可能由用户以简写结构传入：
+//   { type: 'p', children: [{ text: '...' }] }
 //
-// 文档树结构（lakex / 语雀）：
-//   { type: 'doc', children: [ { type, id, children: [...], ... } ] }
-// 部分节点可能用 `content` 而非 `children` 作为子节点数组，这里两者都兼容。
-//
-// 注意：所有修改操作会触发一次 setDocument，这会重置选区/光标，
-// 对于「移动 / 删除 / 复制」这类离散操作是可接受的。
+// 下面的操作优先保持读到的结构风格，避免把 `type: "element"` 错改为
+// `type: "h1"` 后又被 Lakex 解析回段落。
 
 import type { LakexEditorInstance } from './blockDoc.types';
 
-/** lakex 文档格式（与 getDocument/setDocument 保持一致） */
 const DOC_FORMAT = 'json';
 
-/** 获取节点的子节点数组（兼容 children / content 两种 key） */
+type NodeLocation = {
+  node: any;
+  parentArray: any[];
+  parentNode: any | null;
+  index: number;
+};
+
 function getChildArray(node: any): any[] | null {
-  if (node && typeof node === 'object') {
-    if (Array.isArray(node.children)) return node.children;
-    if (Array.isArray(node.content)) return node.content;
-  }
+  if (!node || typeof node !== 'object') return null;
+  if (Array.isArray(node.children)) return node.children;
+  if (Array.isArray(node.content)) return node.content;
   return null;
 }
 
-/** 在文档树中查找节点及其所在的父数组与下标 */
-function findNodeAndParent(
-  root: any,
-  id: string
-): { node: any; parentArray: any[]; index: number } | null {
+function getNodeName(node: any): string {
+  if (!node || typeof node !== 'object') return '';
+  if (node.type === 'element') return String(node.name || '');
+  return String(node.type || '');
+}
+
+function setNodeName(node: any, name: string): void {
+  if (node.type === 'element') {
+    node.name = name;
+  } else {
+    node.type = name;
+  }
+}
+
+function findNodeAndParent(root: any, id: string): NodeLocation | null {
   const roots = getChildArray(root) ?? (Array.isArray(root) ? root : []);
-  const search = (arr: any[]): any => {
-    for (let i = 0; i < arr.length; i++) {
-      const n = arr[i];
-      if (n && typeof n === 'object' && n.id === id) {
-        return { node: n, parentArray: arr, index: i };
+
+  const search = (arr: any[], parentNode: any | null): NodeLocation | null => {
+    for (let index = 0; index < arr.length; index += 1) {
+      const node = arr[index];
+      if (node && typeof node === 'object' && node.id === id) {
+        return { node, parentArray: arr, parentNode, index };
       }
-      const ch = getChildArray(n);
-      if (ch) {
-        const found = search(ch);
+      const children = getChildArray(node);
+      if (children) {
+        const found = search(children, node);
         if (found) return found;
       }
     }
     return null;
   };
-  return search(roots);
+
+  return search(roots, root);
 }
 
-/** 判断 node 是否是 descendantId 的祖先（含间接），用于避免把节点移入自身子孙形成环 */
 function isAncestor(node: any, descendantId: string): boolean {
-  const ch = getChildArray(node);
-  if (!ch) return false;
-  for (const c of ch) {
-    if (c && typeof c === 'object' && c.id === descendantId) return true;
-    if (isAncestor(c, descendantId)) return true;
-  }
-  return false;
+  const children = getChildArray(node);
+  if (!children) return false;
+  return children.some((child) => (
+    child?.id === descendantId || isAncestor(child, descendantId)
+  ));
 }
 
-/** 生成一个新的块 id（框架通常接受任意字符串 id） */
 function genId(): string {
-  return 'blk_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  return `u${Math.random().toString(16).slice(2, 10)}`;
 }
 
-/**
- * 从编辑器读取 text/lake 文档树，返回「解析后的 JSON 对象」。
- * 若底层返回的是字符串则 JSON.parse；若已是对象则原样返回。
- * 读取失败返回 null。
- */
-function readDoc(editor: any): any | null {
+function regenerateIds(node: any): void {
+  if (!node || typeof node !== 'object') return;
+  if ('id' in node) node.id = genId();
+  const children = getChildArray(node);
+  children?.forEach(regenerateIds);
+}
+
+function isDomLikeDocument(doc: any): boolean {
+  return doc?.type === 'element' || getChildArray(doc)?.some((node) => node?.type === 'element');
+}
+
+function createTextNode(domLike: boolean, text = ''): any {
+  if (!domLike) return { text };
+  return {
+    type: 'text',
+    id: genId(),
+    name: '#text',
+    attrs: {},
+    data: text,
+  };
+}
+
+function createElementNode(
+  name: string,
+  domLike: boolean,
+  children: any[] = [],
+  attrs: Record<string, unknown> = {},
+): any {
+  if (!domLike) return { type: name, id: genId(), attrs, children };
+  return {
+    type: 'element',
+    id: genId(),
+    name,
+    attrs,
+    children,
+  };
+}
+
+function createBlockNode(name: string, domLike: boolean): any {
+  if (name === 'hr') {
+    return createElementNode('hr', domLike);
+  }
+
+  if (name === 'quote' || name === 'blockquote') {
+    const paragraph = createElementNode('p', domLike, [createTextNode(domLike)]);
+    return createElementNode(domLike ? 'quote' : 'blockquote', domLike, [paragraph]);
+  }
+
+  if (name === 'codeblock') {
+    return createElementNode(
+      'codeblock',
+      domLike,
+      [createTextNode(domLike)],
+      { language: 'plain', customStyle: false },
+    );
+  }
+
+  // 菜单只直接新增安全的文本块。未知类型仍按普通元素创建，交给
+  // Lakex 自身的 JSON 解析器规范化。
+  return createElementNode(name, domLike, [createTextNode(domLike)]);
+}
+
+export function readBlockDocument(editor: LakexEditorInstance): any | null {
   try {
     const raw = editor?.getDocument?.(DOC_FORMAT);
     if (raw == null) return null;
@@ -84,162 +147,127 @@ function readDoc(editor: any): any | null {
   }
 }
 
-/**
- * 将文档树（JSON 对象或字符串）写回编辑器。
- * 若为对象则 JSON.stringify 后再 setDocument。
- * 返回是否成功。
- */
-function writeDoc(editor: any, doc: any): boolean {
+export function writeBlockDocument(editor: LakexEditorInstance, doc: any): boolean {
   try {
-    const text = typeof doc === 'string' ? doc : JSON.stringify(doc);
-    editor?.setDocument?.(DOC_FORMAT, text);
+    const value = typeof doc === 'string' ? doc : JSON.stringify(doc);
+    editor?.setDocument?.(DOC_FORMAT, value);
+    editor?.execCommand?.('focus', { preventScroll: true });
     return true;
   } catch {
     return false;
   }
 }
 
-/**
- * 移动块：把 sourceId 对应的节点移动到 targetId 节点之前或之后。
- *
- * 移动语义（与拖拽一致）：
- *   - sourceId    : 被拖动的块（要移动的对象），按此 id 在 JSON 中查找
- *   - targetId    : 落点参考块（放置位置的参照）
- *   - insertAfter :
- *        true  -> 把 sourceId 节点移动到 targetId 节点的【下方】（之后）
- *        false -> 把 sourceId 节点移动到 targetId 节点的【上方】（之前）
- *
- * 流程：readDoc(读 JSON) -> 按 sourceId 定位并摘除 -> 按 targetId 重新定位 ->
- *       在 targetId 上方/下方插入 -> writeDoc(写回 JSON)。
- *
- * 返回是否成功。
- */
 export function moveBlock(
   editor: LakexEditorInstance,
   sourceId: string,
   targetId: string,
-  insertAfter: boolean
+  insertAfter: boolean,
 ): boolean {
   if (!sourceId || !targetId || sourceId === targetId) return false;
 
-  const doc = readDoc(editor);
+  const doc = readBlockDocument(editor);
   if (!doc) return false;
 
-  // 1) 按 sourceId 在 JSON 中查找被拖动节点
-  const src = findNodeAndParent(doc, sourceId);
-  if (!src) return false;
+  const source = findNodeAndParent(doc, sourceId);
+  const target = findNodeAndParent(doc, targetId);
+  if (!source || !target || isAncestor(source.node, targetId)) return false;
 
-  // 不能把节点移动到它自己的子孙节点里（避免形成环）
-  if (isAncestor(src.node, targetId)) return false;
-
-  // 2) 按 targetId 在 JSON 中查找落点参考节点
-  const tgt = findNodeAndParent(doc, targetId);
-  if (!tgt) return false;
-
-  // 3) 先从原位置摘除
-  src.parentArray.splice(src.index, 1);
-
-  // 4) 摘除后重新定位目标（同源数组时下标可能漂移）
-  const tgt2 = findNodeAndParent(doc, targetId);
-  if (!tgt2) {
-    src.parentArray.splice(src.index, 0, src.node); // 回滚
+  source.parentArray.splice(source.index, 1);
+  const relocatedTarget = findNodeAndParent(doc, targetId);
+  if (!relocatedTarget) {
+    source.parentArray.splice(source.index, 0, source.node);
     return false;
   }
 
-  // 5) 插入到目标节点的上方（之前）或下方（之后）
-  const insertIdx = insertAfter ? tgt2.index + 1 : tgt2.index;
-  tgt2.parentArray.splice(insertIdx, 0, src.node);
-
-  // 6) 写回 JSON
-  return writeDoc(editor, doc);
+  const insertionIndex = insertAfter
+    ? relocatedTarget.index + 1
+    : relocatedTarget.index;
+  relocatedTarget.parentArray.splice(insertionIndex, 0, source.node);
+  return writeBlockDocument(editor, doc);
 }
 
-/** 删除块（按 id 在 JSON 中查找并移除） */
 export function deleteBlock(editor: LakexEditorInstance, id: string): boolean {
-  
-  
-  const doc = readDoc(editor);
+  const doc = readBlockDocument(editor);
   if (!doc) return false;
+
   const found = findNodeAndParent(doc, id);
   if (!found) return false;
   found.parentArray.splice(found.index, 1);
-  return writeDoc(editor, doc);
-  // editor.execCommand('focus', { preventScroll: !0 })
+
+  // Lakex 需要至少一个可编辑块。删除最后一块时自动补一个空段落。
+  if (found.parentNode === doc && found.parentArray.length === 0) {
+    found.parentArray.push(createBlockNode('p', isDomLikeDocument(doc)));
+  }
+
+  return writeBlockDocument(editor, doc);
 }
 
-/** 复制（克隆）块并插入到其后/前 */
 export function duplicateBlock(
   editor: LakexEditorInstance,
   id: string,
-  insertAfter = true
+  insertAfter = true,
 ): boolean {
-  const doc = readDoc(editor);
+  const doc = readBlockDocument(editor);
   if (!doc) return false;
+
   const found = findNodeAndParent(doc, id);
   if (!found) return false;
+
   const clone = JSON.parse(JSON.stringify(found.node));
-  clone.id = genId();
-  const insertIdx = insertAfter ? found.index + 1 : found.index;
-  found.parentArray.splice(insertIdx, 0, clone);
-  return writeDoc(editor, doc);
+  regenerateIds(clone);
+  found.parentArray.splice(insertAfter ? found.index + 1 : found.index, 0, clone);
+  return writeBlockDocument(editor, doc);
 }
 
-/**
- * 转换块类型（如 p -> h1）。
- * targetType 为 JSON 中的节点 type 字符串。
- */
 export function convertBlock(
   editor: LakexEditorInstance,
   id: string,
-  targetType: string
+  targetName: string,
 ): boolean {
-  const doc = readDoc(editor);
+  const doc = readBlockDocument(editor);
   if (!doc) return false;
+
   const found = findNodeAndParent(doc, id);
   if (!found) return false;
-  found.node.type = targetType;
-  // 标题通常需要 level，这里给个默认 1，调用方可在 onBlockAction 中细化
-  if (/^h[1-6]$/.test(targetType) && found.node.attrs && typeof found.node.attrs === 'object') {
-    found.node.attrs.level = parseInt(targetType.slice(1), 10);
+
+  const sourceName = getNodeName(found.node);
+  if (sourceName === targetName) return true;
+
+  // p / h1-h6 共享相同的文本 children，可以无损改名。
+  if (/^(p|h[1-6])$/.test(sourceName) && /^(p|h[1-6])$/.test(targetName)) {
+    setNodeName(found.node, targetName);
+    return writeBlockDocument(editor, doc);
   }
-  return writeDoc(editor, doc);
+
+  // 其他类型由调用方优先走 Lakex 原生命令；这里保留一个可预测的
+  // JSON fallback，并尽量保留原有文本内容。
+  if (targetName === 'hr') {
+    const replacement = createElementNode('hr', isDomLikeDocument(doc));
+    replacement.id = found.node.id || replacement.id;
+    found.parentArray[found.index] = replacement;
+  } else {
+    setNodeName(found.node, targetName);
+    found.node.attrs ||= {};
+    found.node.children ||= [createTextNode(isDomLikeDocument(doc))];
+  }
+
+  return writeBlockDocument(editor, doc);
 }
 
-/**
- * 在参考块之前/之后插入一个新块。
- * newType 为 JSON 节点 type 字符串。
- */
 export function insertBlock(
   editor: LakexEditorInstance,
   referenceId: string,
   position: 'before' | 'after',
-  newType: string
+  newName: string,
 ): boolean {
-  const doc = readDoc(editor);
+  const doc = readBlockDocument(editor);
   if (!doc) return false;
+
   const found = findNodeAndParent(doc, referenceId);
   if (!found) return false;
 
-  const newNode: any = { type: newType, id: genId() };
-  // 文本类块需要 children 容纳文本节点；卡片类块通常有 cardValue
-  if (newType === 'p' || newType.startsWith('h') || newType === 'quote') {
-    newNode.children = [{ type: 'text', text: '' }];
-  } else {
-    newNode.children = [];
-  }
-
-  const insertIdx = position === 'after' ? found.index + 1 : found.index;
-  found.parentArray.splice(insertIdx, 0, newNode);
-  return writeDoc(editor, doc);
+  const newNode = createBlockNode(newName, isDomLikeDocument(doc));
+  found.parentArray.splice(position === 'after' ? found.index + 1 : found.index, 0, newNode);
+  return writeBlockDocument(editor, doc);
 }
-
-/**
- * 缩进 / 取消缩进。
- * 由于缩进在文档模型中通常体现为父列表节点（list > list_item），
- * 这里仅提供一个通用占位实现：若框架未提供对应命令，建议通过
- * onBlockAction 回调调用框架原生能力。返回 false 表示未执行实际操作。
- */
-export function indentBlock(): boolean {
-  return false;
-}
-
