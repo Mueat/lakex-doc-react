@@ -19,18 +19,21 @@
 //       onAction={(action, data) => handleAction(action, data)}
 //   />
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import { BlockCardSelect } from '../BlockCardSelect';
 import './BlockContextMenu.css';
 
 /** 菜单项动作类型 */
 export type BlockMenuAction =
   | 'convert'      // 转化为
+  | 'aiOutline'    // AI 大纲写作
   | 'delete'       // 删除
   | 'copy'         // 复制
   | 'cut'          // 剪切
   | 'paste'        // 粘贴
   | 'indent'       // 缩进
   | 'outdent'      // 取消缩进
+  | 'copyLink'     // 复制当前块链接
   | 'addBefore'    // 在上方添加
   | 'addAfter'     // 在下方添加
   | 'duplicate'    // 复制块
@@ -42,6 +45,8 @@ export interface MenuItem {
   action: BlockMenuAction;
   /** 显示标签 */
   label: string;
+  /** 稳定的动作参数（不随中英文标签变化） */
+  value?: string;
   /** 图标（SVG 或 null） */
   icon?: React.ReactNode | null;
   /** 是否有子菜单 */
@@ -50,7 +55,9 @@ export interface MenuItem {
   submenu?: MenuItem[];
   /** 是否禁用 */
   disabled?: boolean;
-  /** 分隔线（设为 true 则该项为分隔线） */
+  /** 当前块正在使用该格式 */
+  selected?: boolean;
+  /** 在当前菜单项后显示分隔线 */
   divider?: boolean;
 }
 
@@ -205,17 +212,21 @@ const MENU_CONFIGS: Record<string, (() => MenuItem[]) | MenuItem[]> = {
 /** "转化为" 子菜单 */
 function getConvertSubmenu(fromType?: string): MenuItem[] {
   return [
-    { action: 'convert', label: '段落', icon: <ParagraphIcon /> },
-    { action: 'convert', label: '标题 1', icon: <H1Icon />, disabled: fromType === 'ne-h1' },
-    { action: 'convert', label: '标题 2', icon: <H2Icon />, disabled: fromType === 'ne-h2' },
-    { action: 'convert', label: '标题 3', icon: <H3Icon />, disabled: fromType === 'ne-h3' },
-    { action: 'convert', label: '引用', icon: <QuoteIcon /> },
-    { action: 'convert', label: '无序列表', icon: <ListIcon /> },
-    { action: 'convert', label: '有序列表', icon: <OrderedListIcon /> },
-    { action: 'convert', label: '任务列表', icon: <TaskIcon /> },
-    { action: 'convert', label: '代码块', icon: <CodeIcon /> },
-    { action: 'convert', label: '分割线', icon: <DividerIcon /> },
-    { action: 'convert', label: '高亮块', icon: <CalloutIcon /> },
+    { action: 'convert', label: 'H1', value: 'h1', icon: <H1Icon />, selected: fromType === 'ne-h1' },
+    { action: 'convert', label: 'H2', value: 'h2', icon: <H2Icon />, selected: fromType === 'ne-h2' },
+    { action: 'convert', label: 'H3', value: 'h3', icon: <H3Icon />, selected: fromType === 'ne-h3' },
+    { action: 'convert', label: 'H4', value: 'h4', icon: <H4Icon />, selected: fromType === 'ne-h4' },
+    { action: 'convert', label: 'H5', value: 'h5', icon: <H5Icon />, selected: fromType === 'ne-h5' },
+    { action: 'convert', label: 'H6', value: 'h6', icon: <H6Icon />, selected: fromType === 'ne-h6' },
+    { action: 'convert', label: '正文', value: 'p', icon: <TextIcon /> },
+    { action: 'convert', label: '有序', value: 'ol', icon: <OrderedListIcon /> },
+    { action: 'convert', label: '无序', value: 'ul', icon: <ListIcon /> },
+    { action: 'convert', label: '任务', value: 'taskList', icon: <TaskIcon /> },
+    { action: 'convert', label: '代码', value: 'codeblock', icon: <CodeIcon /> },
+    { action: 'convert', label: '高亮块', value: 'callout', icon: <CalloutIcon /> },
+    { action: 'convert', label: '引用', value: 'quote', icon: <QuoteIcon /> },
+    { action: 'convert', label: '分栏', value: 'columns', icon: <ColumnsIcon /> },
+    { action: 'convert', label: '折叠块', value: 'collapse', icon: <CollapseIcon /> },
   ];
 }
 
@@ -230,19 +241,13 @@ function getIndentSubmenu(): MenuItem[] {
 /** "在下方/上方添加" 子菜单 */
 function getAddSubmenu(): MenuItem[] {
   return [
-    { action: 'addAfter', label: '段落', icon: <ParagraphIcon /> },
-    { action: 'addAfter', label: '标题 1', icon: <H1Icon /> },
-    { action: 'addAfter', label: '标题 2', icon: <H2Icon /> },
-    { action: 'addAfter', label: '标题 3', icon: <H3Icon /> },
-    { action: 'addAfter', label: '引用', icon: <QuoteIcon /> },
-    { action: 'addAfter', label: '无序列表', icon: <ListIcon /> },
-    { action: 'addAfter', label: '有序列表', icon: <OrderedListIcon /> },
-    { action: 'addAfter', label: '任务列表', icon: <TaskIcon /> },
-    { action: 'addAfter', label: '代码块', icon: <CodeIcon /> },
-    { action: 'addAfter', label: '分割线', icon: <DividerIcon /> },
-    { action: 'addAfter', label: '图片', icon: <ImageIcon /> },
-    { action: 'addAfter', label: '表格', icon: <TableIcon /> },
-    { action: 'addAfter', label: '高亮块', icon: <CalloutIcon /> },
+    { action: 'addAfter', label: '段落', value: 'p', icon: <ParagraphIcon /> },
+    { action: 'addAfter', label: '标题 1', value: 'h1', icon: <H1Icon /> },
+    { action: 'addAfter', label: '标题 2', value: 'h2', icon: <H2Icon /> },
+    { action: 'addAfter', label: '标题 3', value: 'h3', icon: <H3Icon /> },
+    { action: 'addAfter', label: '引用', value: 'quote', icon: <QuoteIcon /> },
+    { action: 'addAfter', label: '代码块', value: 'codeblock', icon: <CodeIcon /> },
+    { action: 'addAfter', label: '分割线', value: 'hr', icon: <DividerIcon /> },
   ];
 }
 
@@ -344,6 +349,38 @@ function H3Icon() {
   );
 }
 
+function H4Icon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <text x="1" y="13" fontSize="10" fontWeight="bold" fill="currentColor" fontFamily="sans-serif">H4</text>
+    </svg>
+  );
+}
+
+function H5Icon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <text x="1" y="13" fontSize="10" fontWeight="bold" fill="currentColor" fontFamily="sans-serif">H5</text>
+    </svg>
+  );
+}
+
+function H6Icon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <text x="1" y="13" fontSize="10" fontWeight="bold" fill="currentColor" fontFamily="sans-serif">H6</text>
+    </svg>
+  );
+}
+
+function TextIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M3 3h10M8 3v10M5.5 13h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 function QuoteIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -409,6 +446,24 @@ function CalloutIcon() {
   );
 }
 
+function ColumnsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="1.5" stroke="currentColor" strokeWidth="1.1"/>
+      <path d="M8 2.5v11" stroke="currentColor" strokeWidth="1.1"/>
+    </svg>
+  );
+}
+
+function CollapseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="1.5" stroke="currentColor" strokeWidth="1.1"/>
+      <path d="M5.5 5.2L8 7.7l-2.5 2.5M9.5 5.2h2.2M9.5 8h2.2M9.5 10.8h2.2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
 function ImageIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -428,6 +483,23 @@ function TableIcon() {
   );
 }
 
+function AiOutlineIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13z" stroke="currentColor" strokeWidth="1.2"/>
+      <path d="M5 10l1.4-4h1.2L9 10M5.5 8.5h3M10.5 6v4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M6.25 9.75l3.5-3.5M5.2 11.9l-1.1 1.1a2.2 2.2 0 01-3.1-3.1l2.1-2.1a2.2 2.2 0 013.1 0M10.8 4.1L11.9 3a2.2 2.2 0 013.1 3.1l-2.1 2.1a2.2 2.2 0 01-3.1 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 export interface BlockContextMenuProps {
   /** 是否显示 */
   visible: boolean;
@@ -441,10 +513,16 @@ export interface BlockContextMenuProps {
   editor: any;
   /** 语言设置 */
   language?: 'zh-cn' | 'en-us';
+  /** 暗黑模式 */
+  dark?: boolean;
   /** 关闭回调 */
   onClose: () => void;
   /** 菜单动作回调 */
   onAction?: (action: BlockMenuAction, data: { blockElement: HTMLElement; blockType: string; payload?: string }) => void;
+  /** Lakex Slash 插件已经解析好的 CardSelect 配置 */
+  cardSelectConfig?: { groups?: unknown[]; [key: string]: unknown } | null;
+  /** 从行菜单的独立 CardSelect 选择卡片 */
+  onCardSelect?: (item: any, args: any[], blockElement: HTMLElement) => void;
 }
 
 export function BlockContextMenu({
@@ -454,8 +532,11 @@ export function BlockContextMenu({
   blockElement,
   editor,
   language = 'zh-cn',
+  dark = false,
   onClose,
   onAction,
+  cardSelectConfig,
+  onCardSelect,
 }: BlockContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
@@ -464,8 +545,103 @@ export function BlockContextMenu({
   // 获取当前块类型的菜单配置
   const getMenuItems = useCallback((): MenuItem[] => {
     const config = MENU_CONFIGS[blockType] || MENU_CONFIGS['default'];
-    return typeof config === 'function' ? config() : config;
-  }, [blockType]);
+    const configured = typeof config === 'function' ? config() : config;
+    const items: MenuItem[] = configured
+      // “在上方添加”暂不展示；所有块统一只保留“在下方添加”入口。
+      .filter((item) => item.action !== 'addBefore')
+      .map((item) => ({
+        ...item,
+        // “在下方添加”使用行菜单自己的 CardSelect 子组件。
+        value: item.action === 'addAfter' ? 'cardSelect' : item.value,
+        hasSubmenu: item.action === 'addAfter' ? true : item.hasSubmenu,
+        submenu: item.action === 'addAfter'
+          ? undefined
+          : item.submenu?.map((subItem) => ({ ...subItem })),
+      }));
+
+    const convertIndex = items.findIndex((item) => item.action === 'convert');
+    if (convertIndex >= 0) {
+      const currentValue: Record<string, string> = {
+        'ne-p': 'p',
+        'ne-h1': 'h1',
+        'ne-h2': 'h2',
+        'ne-h3': 'h3',
+        'ne-h4': 'h4',
+        'ne-h5': 'h5',
+        'ne-h6': 'h6',
+        'ne-quote': 'quote',
+        'ne-codeblock': 'codeblock',
+        'ne-hr': 'hr',
+      };
+      items[convertIndex].submenu = items[convertIndex].submenu?.map((subItem) => ({
+        ...subItem,
+        selected: subItem.selected || subItem.value === currentValue[blockType],
+      }));
+      // “大纲写作法”入口暂不展示。
+    }
+
+    const addIndex = items.findIndex((item) => (
+      item.action === 'addAfter' || item.action === 'addBefore'
+    ));
+    items.splice(addIndex >= 0 ? addIndex : items.length, 0, {
+      action: 'copyLink',
+      label: '复制链接',
+      icon: <LinkIcon />,
+      divider: addIndex >= 0,
+    });
+
+    if (language !== 'en-us') return items;
+
+    const labels: Record<string, string> = {
+      '转化为': 'Turn into',
+      '大纲写作法': 'AI outline',
+      '删除': 'Delete',
+      '删除表格': 'Delete table',
+      '复制': 'Copy',
+      '复制代码': 'Copy code',
+      '复制图片': 'Copy image',
+      '复制表格': 'Copy table',
+      '剪切': 'Cut',
+      '缩进': 'Indent',
+      '增加缩进': 'Increase indent',
+      '减少缩进': 'Decrease indent',
+      '复制链接': 'Copy link',
+      '复制卡片': 'Duplicate card',
+      '在上方添加': 'Add above',
+      '在下方添加': 'Add below',
+      '段落': 'Paragraph',
+      '正文': 'Text',
+      '有序': 'Numbered',
+      '无序': 'Bulleted',
+      '任务': 'Task',
+      '代码': 'Code',
+      '标题 1': 'Heading 1',
+      '标题 2': 'Heading 2',
+      '标题 3': 'Heading 3',
+      '引用': 'Quote',
+      '无序列表': 'Bulleted list',
+      '有序列表': 'Numbered list',
+      '任务列表': 'Task list',
+      '代码块': 'Code block',
+      '分割线': 'Divider',
+      '高亮块': 'Callout',
+      '分栏': 'Columns',
+      '折叠块': 'Toggle',
+    };
+
+    return items.map((item) => ({
+      ...item,
+      label: labels[item.label] || item.label,
+      submenu: item.submenu?.map((subItem) => ({
+        ...subItem,
+        label: labels[subItem.label] || subItem.label,
+      })),
+    }));
+  }, [blockType, language]);
+
+  useEffect(() => {
+    if (visible) setActiveSubmenu(null);
+  }, [visible, blockType]);
 
   // 点击外部关闭
   useEffect(() => {
@@ -517,8 +693,40 @@ export function BlockContextMenu({
     menuRef.current.style.top = `${adjustedY}px`;
   }, [visible, position]);
 
+  useLayoutEffect(() => {
+    const submenu = submenuRef.current;
+    if (!visible || !activeSubmenu || !submenu) return;
+
+    const parentRect = submenu.parentElement?.getBoundingClientRect();
+    if (parentRect) {
+      const triggerCenterY = parentRect.top + parentRect.height / 2;
+      const centeredHeight = Math.max(
+        80,
+        2 * Math.min(triggerCenterY - 8, window.innerHeight - 8 - triggerCenterY),
+      );
+
+      if (submenu.classList.contains('ne-block-card-select-submenu')) {
+        // 原生卡片内容负责滚动，外层只限制可居中的可视高度。
+        submenu.style.height = `${Math.min(600, centeredHeight)}px`;
+      } else {
+        submenu.style.maxHeight = `${Math.min(520, centeredHeight)}px`;
+      }
+
+      const rect = submenu.getBoundingClientRect();
+      submenu.style.left = rect.right > window.innerWidth - 8 ? 'auto' : '100%';
+      submenu.style.right = rect.right > window.innerWidth - 8 ? '100%' : 'auto';
+
+      // 触发行中心线与二级弹窗中心线对齐。
+      const centeredViewportTop = triggerCenterY - rect.height / 2;
+      const maxViewportTop = Math.max(8, window.innerHeight - rect.height - 8);
+      const viewportTop = Math.max(8, Math.min(centeredViewportTop, maxViewportTop));
+      submenu.style.top = `${viewportTop - parentRect.top}px`;
+      submenu.style.bottom = 'auto';
+    }
+  }, [visible, activeSubmenu]);
+
   const handleItemClick = useCallback((item: MenuItem) => {
-    if (item.disabled || item.divider) return;
+    if (item.disabled) return;
 
     if (item.hasSubmenu && item.submenu) {
       // 切换子菜单
@@ -530,7 +738,7 @@ export function BlockContextMenu({
     onAction?.(item.action, {
       blockElement: blockElement!,
       blockType,
-      payload: item.label,
+      payload: item.value ?? item.label,
     });
     onClose();
   }, [onAction, blockElement, blockType, onClose]);
@@ -538,10 +746,11 @@ export function BlockContextMenu({
   const handleSubmenuItemClick = useCallback((parentAction: BlockMenuAction, subItem: MenuItem) => {
     if (subItem.disabled) return;
 
-    onAction?.(parentAction, {
+    const action = parentAction === 'indent' ? subItem.action : parentAction;
+    onAction?.(action, {
       blockElement: blockElement!,
       blockType,
-      payload: subItem.label,
+      payload: subItem.value ?? subItem.label,
     });
     onClose();
   }, [onAction, blockElement, blockType, onClose]);
@@ -553,7 +762,10 @@ export function BlockContextMenu({
   return (
     <div
       ref={menuRef}
-      className="ne-block-context-menu"
+      className={`ne-block-context-menu${dark ? ' ne-block-context-menu--dark' : ''}`}
+      role="menu"
+      aria-label={language === 'en-us' ? 'Block actions' : '块操作'}
+      onMouseDown={(event) => event.preventDefault()}
       style={{
         left: position.x,
         top: position.y,
@@ -561,50 +773,130 @@ export function BlockContextMenu({
     >
       <div className="ne-block-context-menu-inner">
         {items.map((item, index) => {
-          if (item.divider) {
-            return <div key={`divider-${index}`} className="ne-block-menu-divider" />;
-          }
-
           const isActive = activeSubmenu === item.action;
           const hasSubmenu = item.hasSubmenu && item.submenu;
+          const opensCardSelect = item.action === 'addAfter';
+          const hasFlyout = Boolean(hasSubmenu || opensCardSelect);
 
           return (
-            <div
-              key={`${item.action}-${index}`}
-              className={`ne-block-menu-item ${item.disabled ? 'disabled' : ''} ${isActive ? 'active' : ''}`}
-              onClick={() => handleItemClick(item)}
-              onMouseEnter={() => hasSubmenu && setActiveSubmenu(item.action)}
-              onMouseLeave={() => hasSubmenu && setActiveSubmenu(null)}
-            >
-              <span className="ne-block-menu-icon">{item.icon}</span>
-              <span className="ne-block-menu-label">{item.label}</span>
-              {hasSubmenu && (
-                <span className="ne-block-menu-arrow">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </span>
-              )}
+            <React.Fragment key={`${item.action}-${index}`}>
+              <div
+                className={`ne-block-menu-item ${item.disabled ? 'disabled' : ''} ${isActive ? 'active' : ''}`}
+                role="menuitem"
+                aria-disabled={item.disabled || undefined}
+                tabIndex={item.disabled ? -1 : 0}
+                onClick={(event) => {
+                  if (opensCardSelect) {
+                    setActiveSubmenu((current) => current === item.action ? null : item.action);
+                    return;
+                  }
+                  handleItemClick(item);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    if (opensCardSelect) {
+                      setActiveSubmenu((current) => current === item.action ? null : item.action);
+                      return;
+                    }
+                    handleItemClick(item);
+                  }
+                }}
+                onMouseEnter={() => {
+                  if (!hasFlyout) return;
+                  setActiveSubmenu(item.action);
+                }}
+                onMouseLeave={() => {
+                  if (!hasFlyout) return;
+                  setActiveSubmenu(null);
+                }}
+              >
+                <span className="ne-block-menu-icon">{item.icon}</span>
+                <span className="ne-block-menu-label">{item.label}</span>
+                {hasFlyout && (
+                  <span className="ne-block-menu-arrow">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </span>
+                )}
 
-              {/* 子菜单 */}
-              {hasSubmenu && isActive && (
-                <div
-                  ref={submenuRef}
-                  className="ne-block-submenu"
-                >
-                  {item.submenu!.map((subItem, subIndex) => (
-                    <div
-                      key={`${subItem.action}-${subIndex}`}
-                      className={`ne-block-menu-item ${subItem.disabled ? 'disabled' : ''}`}
-                      onClick={() => handleSubmenuItemClick(item.action, subItem)}
-                    >
-                      <span className="ne-block-menu-icon">{subItem.icon}</span>
-                      <span className="ne-block-menu-label">{subItem.label}</span>
-                    </div>
-                  ))}
-                </div>
+                {hasSubmenu && isActive && (
+                  <div
+                    ref={submenuRef}
+                    className={`ne-block-submenu${item.action === 'convert' ? ' ne-block-convert-submenu' : ''}`}
+                    role="menu"
+                  >
+                    {item.submenu!.map((subItem, subIndex) => {
+                      const convertPresentation = item.action === 'convert'
+                        ? (subIndex < 11 ? 'compact' : 'card')
+                        : null;
+                      return (
+                        <div
+                          key={`${subItem.action}-${subIndex}`}
+                          className={[
+                            'ne-block-menu-item',
+                            subItem.disabled ? 'disabled' : '',
+                            subItem.selected ? 'selected' : '',
+                            convertPresentation ? 'ne-block-convert-item' : '',
+                            convertPresentation ? `ne-block-convert-item--${convertPresentation}` : '',
+                          ].filter(Boolean).join(' ')}
+                          role="menuitem"
+                          aria-label={subItem.label}
+                          aria-disabled={subItem.disabled || undefined}
+                          aria-current={subItem.selected ? 'true' : undefined}
+                          title={convertPresentation === 'compact' ? subItem.label : undefined}
+                          tabIndex={subItem.disabled ? -1 : 0}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleSubmenuItemClick(item.action, subItem);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              handleSubmenuItemClick(item.action, subItem);
+                            }
+                          }}
+                        >
+                          <span className="ne-block-menu-icon">{subItem.icon}</span>
+                          <span className="ne-block-menu-label">{subItem.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {opensCardSelect && isActive && (
+                  <div
+                    ref={submenuRef}
+                    className="ne-block-card-select-submenu"
+                    role="menu"
+                    aria-label={language === 'en-us' ? 'Add a card below' : '在下方添加卡片'}
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    <BlockCardSelect
+                      config={cardSelectConfig || null}
+                      dark={dark}
+                      language={language}
+                      overlayContainer={editor?.overlayContainer}
+                      themeSelector={editor?.theme?.getThemeSelector?.()}
+                      onCancel={() => setActiveSubmenu(null)}
+                      onSelect={(selectedItem, ...args) => {
+                        if (blockElement) {
+                          onCardSelect?.(selectedItem, args, blockElement);
+                        }
+                        onClose();
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              {item.divider && (
+                <div className="ne-block-menu-divider" role="separator" />
               )}
-            </div>
+            </React.Fragment>
           );
         })}
       </div>

@@ -590,6 +590,10 @@ export interface LakexEditorProps {
    */
   disableMergeConfig?: boolean;
   /**
+   * 是否启用行首悬浮手柄和块操作菜单，默认 true
+   */
+  blockMenu?: boolean;
+  /**
    * 块操作回调（右键菜单动作触发时调用）
    * 可用于业务方自定义处理或追踪用户操作
    */
