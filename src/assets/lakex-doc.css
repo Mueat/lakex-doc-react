@@ -3473,6 +3473,7 @@ ne-card[data-card-name='image'] .ne-card-container .ne-ui-image-ocr-mask ::selec
 .ne-image-title .ne-image-title-content {
   vertical-align: top;
   display: inline-block;
+  width: 100%;
   min-width: 1px;
   max-width: 100%;
   min-height: 18px;

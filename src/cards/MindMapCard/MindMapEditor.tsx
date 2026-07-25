@@ -47,10 +47,13 @@ class MindMapEditor extends React.Component<
   private saveData() {
     const instance = this.mindMapRef.current;
     if (instance && typeof instance.getMarkdown === 'function') {
-      const md = instance.getMarkdown();
+      
       const { updateCardValue } = this.props;
       if (typeof updateCardValue === 'function') {
-        updateCardValue({markdown: md, cardHeight: this.state.height });
+        const markdown = instance.getMarkdown();
+        const svg = instance.exportToSVG().replace(/\r?\n|\r/g, "")
+        console.log(svg)
+        updateCardValue({markdown, svg, cardHeight: this.state.height });
       }
     }
   }

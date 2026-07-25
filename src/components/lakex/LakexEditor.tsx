@@ -11,9 +11,11 @@ import type {
 } from "./types";
 import GetDefaultEditorConfig from "../../configs/editor";
 import React from "react";
-import Icon from "./icon";
+import SvgIcon from "./icon";
+import type {TIcon} from "./icon";
 import { BlockHoverHandle } from "../BlockHoverHandle";
 import { BlockContextMenu, BlockMenuAction } from "../BlockContextMenu";
+import { ImageToolbar } from "../plugin/imageToolbar/ImageToolbar";
 import {
   moveBlock,
   deleteBlock,
@@ -108,6 +110,7 @@ export function LakexEditor(props: LakexEditorProps) {
 
     switch (action) {
       case 'delete': {
+       
         const range = document.createRange();
         const el = document.getElementById(blockId);
         if (el) {
@@ -335,20 +338,26 @@ export function LakexEditor(props: LakexEditorProps) {
     setEditorInstance(editor);
   };
 
+  const getIcons = (): TIcon[] => {
+    let icons: TIcon[] = []
+    if (defaultConfig.customCard && !props.disableMergeConfig) {
+      icons = defaultConfig.customCard.cards.filter(c => c.icon).map((c) => c.icon)
+    }
+    if (props.config?.customCard) {
+      icons.push(...props.config.customCard.cards.filter(c => c.icon).map(c => c.icon))
+    }
+    return icons;
+  }
+
   const defaultConfig = GetDefaultEditorConfig(props.language)
+  
   return (
     <>
-    <svg id="icon-lakexui-37300002" aria-hidden="true" style={{position: "absolute", width: 0, height: 0, overflow:'hidden'}}>
-      {defaultConfig.customCard && !props.disableMergeConfig ? defaultConfig.customCard.cards.filter(c => c.icon).map((c) => {
-        return React.createElement(c.icon)
-      }) : <></>}
-      {props.config?.customCard  ? props.config.customCard .cards.filter(c => c.icon).map((c) => {
-        return React.createElement(c.icon)
-      }) : <></>}
-      <Icon />
-    </svg>
+    <SvgIcon icons={getIcons()} />
+    
     <div ref={containerRef} style={{width: '100%', height: '100%', position: 'relative'}}></div>
     <div className={props.dark ? 'lakex-dark-theme ne-typography-classic':'lakex-default-theme ne-typography-classic'}>
+    
     {/* 块悬浮拖拽手柄 */}
     {editorInstance && (
       <BlockHoverHandle
@@ -359,6 +368,16 @@ export function LakexEditor(props: LakexEditorProps) {
         language={props.language || 'zh-cn'}
         dark={props.dark}
         heading={props.config?.heading}
+      />
+    )}
+
+    {/* 图片卡片浮动操作栏（点击/悬浮图片时显示在图片正上方） */}
+    {editorInstance && (
+      <ImageToolbar
+        containerRef={containerRef}
+        editor={editorInstance}
+        language={props.language || 'zh-cn'}
+        dark={props.dark}
       />
     )}
 
