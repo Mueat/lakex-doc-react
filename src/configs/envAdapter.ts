@@ -1,12 +1,14 @@
 import { EnvAdapter } from "../components/lakex/types";
 
+const visitLink = (url: string, isExternal: boolean) => {
+    window.open(url, isExternal ? '__blank': '__self');
+}
 const DefaultEnvAdapterConfig: EnvAdapter = {
-    openLink: (url: string, isExternal: boolean) => {
-        window.open(url, isExternal ? '__blank': '__self');
+    openLink: visitLink,
+    openBookmarkLink: (url: string) => {
+        window.open(url, '__blank');
     },
-    openMentionLink: (url: string, isExternal: boolean) => {
-        window.open(url, isExternal ? '__blank': '__self');
-    },
+    openMentionLink: visitLink,
     longPressCard: (params: Record<string, any>) =>{
         console.log(params)
     }

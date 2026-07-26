@@ -16,6 +16,7 @@ export const mindMapCardConfig: CustomCardConfig = {
   viewerComponent: MindMapViewer,
   initValue: {
     markdown: defaultMarkdown,
+    svg:"",
     cardHeight: 500,
   },
   slash: {
@@ -33,16 +34,17 @@ export const mindMapCardConfig: CustomCardConfig = {
     return value?.markdown || '';
   },
   writeHtml: (value: IMindMapCardValue | null) => {
-    console.log(value);
-    if (!value?.markdown) return '<div></div>';
-    const lines = value.markdown.split('\n').map(line => line.trim()).filter(Boolean);
-    return `<div style="padding:12px;background:#fafafa;border-radius:8px;">
-      <pre style="margin-top:8px;font-size:12px;color:#666;">${lines.join('\n')}</pre>
-    </div>`;
+    if (!value?.svg) return '<div></div>';
+    const base64 = btoa(unescape(encodeURIComponent(value.svg)));
+    return`<img src="${`data:image/svg+xml;base64,${base64}`}" />`
   },
 };
 
 export const mindMapCard: CustomCard = {
   config: mindMapCardConfig
 }
+
+//setTimeout(()=>navigator.clipboard.read().then(itms=>{itms.forEach(itm=>{itm.types.forEach(c => itm.getType(c).then(b => b.text().then(console.log)))})}),5000)
+
+
 

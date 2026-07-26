@@ -1,9 +1,13 @@
 import { ImageConfig } from "../components/lakex/types";
+import createImageToolbarPlugin from "../components/plugin/imageToolbar";
 
 function getBase64FileSize(base64String: string): number {
   const byteCharacters = atob(base64String.replace(/^data:image\/\w+;base64,/, ''));
   return byteCharacters.length; // 直接得到字节数
 }
+
+// 图片选中后上方浮动操作栏（cardToolbar）配置，抽离为独立插件模块维护
+const imageToolbar = createImageToolbarPlugin();
 
 const DeafultImageConfig: ImageConfig = {
     isCaptureImageURL: (_url: string, _patterns: RegExp[], _excludePatterns: RegExp[]) => {
@@ -33,7 +37,9 @@ const DeafultImageConfig: ImageConfig = {
                 filename: 'image.png'
             });
         }
-    }
+    },
+    // 图片卡片浮动操作栏（cardToolbar）：由 ImageToolBar 插件注入
+    ...imageToolbar,
 }
 
 export default DeafultImageConfig
