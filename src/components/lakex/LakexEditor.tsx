@@ -45,23 +45,20 @@ function runNativeConvert(editor: any, blockElement: HTMLElement, target: string
 
   try {
     if (/^(p|h[1-6])$/.test(target)) {
-      editor.execCommand("style", target);
+      return editor.execCommand("style", target) !== false;
     } else {
-      const command: Record<string, string> = {
-        quote: "quote",
-        ul: "unorderedList",
-        ol: "orderedList",
-        taskList: "taskList",
-        codeblock: "codeblock",
-        hr: "hr",
-        callout: "alert",
-        columns: "columns2",
-        collapse: "collapse",
+      const command: Record<string, [string, ...unknown[]]> = {
+        quote: ["quote"],
+        ul: ["unorderedList"],
+        ol: ["orderedList"],
+        taskList: ["taskList"],
+        callout: ["alert"],
+        columns: ["columns", 2],
+        collapse: ["collapse"],
       };
       if (!command[target]) return false;
-      editor.execCommand(command[target]);
+      return editor.execCommand(...command[target]) !== false;
     }
-    return true;
   } catch {
     return false;
   }
@@ -205,8 +202,10 @@ export function LakexEditor(props: LakexEditorProps) {
       }
       case 'convert': {
         if (blockId && data.payload) {
-          const ok = runNativeConvert(editor, data.blockElement, data.payload)
-            || convertBlock(editor, blockId, data.payload);
+          // JSON 替换能完整移除 quote/alert/containerHole 外壳并保留文本；
+          // 仅在无法读取当前文档时才回退到 Lakex 原生命令。
+          const ok = convertBlock(editor, blockId, data.payload)
+            || runNativeConvert(editor, data.blockElement, data.payload);
           if (!ok) {
             console.warn('[LakexEditor] 转换块类型失败:', data.payload);
           }

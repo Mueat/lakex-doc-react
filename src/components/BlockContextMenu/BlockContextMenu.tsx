@@ -251,6 +251,91 @@ function getAddSubmenu(): MenuItem[] {
   ];
 }
 
+function YuqueIcon({ id }: { id: string }) {
+  return (
+    <svg className="ne-block-yuque-icon" aria-hidden="true">
+      <use href={`#${id}`} xlinkHref={`#${id}`} />
+    </svg>
+  );
+}
+
+function getConvertOptionIcon(value: string | undefined, dark: boolean): React.ReactNode {
+  const compactIcons: Record<string, string> = {
+    h1: 'icon-editor-h1',
+    h2: 'icon-editor-h2',
+    h3: 'icon-editor-h3',
+    h4: 'icon-editor-h4',
+    h5: 'icon-editor-h5',
+    h6: 'icon-editor-h6',
+    p: 'icon-editor-paragraph',
+    ol: 'icon-editor-orderedList',
+    ul: 'icon-editor-unorderedList',
+    taskList: 'icon-editor-taskList',
+    codeblock: 'icon-editor-codeblock',
+  };
+  const cardIcons: Record<string, string> = {
+    callout: `icon-高亮块${dark ? '' : '-light'}`,
+    quote: `icon-引用${dark ? '' : '-light'}`,
+    columns: `icon-分栏${dark ? '' : '-light'}`,
+    collapse: `icon-折叠块${dark ? '' : '-light'}`,
+  };
+  const id = (value && (compactIcons[value] || cardIcons[value])) || '';
+  return id ? <YuqueIcon id={id} /> : null;
+}
+
+function getCurrentConvertValue(
+  blockType: string,
+  blockElement: HTMLElement | null,
+): string | undefined {
+  // Lakex 某些版本会把三种列表的外层都渲染为 ne-tli，真实类型需
+  // 以内层的 oli/uli/tli 标记为准。
+  if (blockElement) {
+    if (blockElement.matches('ne-oli') || blockElement.querySelector('ne-oli-i, ne-oli-c')) {
+      return 'ol';
+    }
+    if (blockElement.matches('ne-uli') || blockElement.querySelector('ne-uli-i, ne-uli-c')) {
+      return 'ul';
+    }
+    if (blockElement.matches('ne-tli') || blockElement.querySelector('ne-tli-i, ne-tli-c')) {
+      return 'taskList';
+    }
+  }
+
+  const directValues: Record<string, string> = {
+    'ne-p': 'p',
+    'ne-h1': 'h1',
+    'ne-h2': 'h2',
+    'ne-h3': 'h3',
+    'ne-h4': 'h4',
+    'ne-h5': 'h5',
+    'ne-h6': 'h6',
+    'ne-quote': 'quote',
+    'ne-codeblock': 'codeblock',
+    'ne-alert': 'callout',
+    'ne-alert-hole': 'callout',
+    'ne-columns': 'columns',
+    'ne-collapse': 'collapse',
+  };
+  if (directValues[blockType]) return directValues[blockType];
+
+  if (
+    blockType === 'ne-hole'
+    && blockElement
+    && (
+      blockElement.getAttribute('data-card') === 'codeblock'
+      || blockElement.querySelector('ne-card[data-card-name="codeblock"]')
+    )
+  ) {
+    return 'codeblock';
+  }
+
+  if (blockType === 'ne-container-hole' && blockElement) {
+    if (blockElement.querySelector('ne-columns')) return 'columns';
+    if (blockElement.querySelector('ne-collapse')) return 'collapse';
+  }
+  return undefined;
+}
+
 // ========== SVG 图标组件 ==========
 
 function ConvertIcon() {
@@ -546,9 +631,13 @@ export function BlockContextMenu({
   const getMenuItems = useCallback((): MenuItem[] => {
     const config = MENU_CONFIGS[blockType] || MENU_CONFIGS['default'];
     const configured = typeof config === 'function' ? config() : config;
+    const currentConvertValue = getCurrentConvertValue(blockType, blockElement);
     const items: MenuItem[] = configured
       // “在上方添加”暂不展示；所有块统一只保留“在下方添加”入口。
-      .filter((item) => item.action !== 'addBefore')
+      .filter((item) => (
+        item.action !== 'addBefore'
+        && (item.action !== 'convert' || currentConvertValue !== undefined)
+      ))
       .map((item) => ({
         ...item,
         // “在下方添加”使用行菜单自己的 CardSelect 子组件。
@@ -561,21 +650,10 @@ export function BlockContextMenu({
 
     const convertIndex = items.findIndex((item) => item.action === 'convert');
     if (convertIndex >= 0) {
-      const currentValue: Record<string, string> = {
-        'ne-p': 'p',
-        'ne-h1': 'h1',
-        'ne-h2': 'h2',
-        'ne-h3': 'h3',
-        'ne-h4': 'h4',
-        'ne-h5': 'h5',
-        'ne-h6': 'h6',
-        'ne-quote': 'quote',
-        'ne-codeblock': 'codeblock',
-        'ne-hr': 'hr',
-      };
       items[convertIndex].submenu = items[convertIndex].submenu?.map((subItem) => ({
         ...subItem,
-        selected: subItem.selected || subItem.value === currentValue[blockType],
+        icon: getConvertOptionIcon(subItem.value, dark),
+        selected: subItem.value === currentConvertValue,
       }));
       // “大纲写作法”入口暂不展示。
     }
@@ -637,7 +715,7 @@ export function BlockContextMenu({
         label: labels[subItem.label] || subItem.label,
       })),
     }));
-  }, [blockType, language]);
+  }, [blockType, blockElement, dark, language]);
 
   useEffect(() => {
     if (visible) setActiveSubmenu(null);

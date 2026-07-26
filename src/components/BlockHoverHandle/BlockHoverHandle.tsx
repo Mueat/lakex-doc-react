@@ -35,6 +35,14 @@ const BLOCK_TAGS = [
   'NE-CALLOUT',
 ] as const;
 
+/** 内部虽然包含 p 等基础块，但行操作必须作用于整个结构组件。 */
+const STRUCTURAL_BLOCK_TAGS = [
+  'NE-QUOTE',
+  'NE-ALERT-HOLE',
+  'NE-CONTAINER-HOLE',
+  'NE-HOLE',
+] as const;
+
 export interface BlockHoverHandleProps {
   containerRef: React.RefObject<HTMLElement | null>;
   editor: any;
@@ -112,6 +120,16 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       const isKnownBlock = tagName && BLOCK_TAGS.includes(tagName as any);
       const isRenderUnit = el.getAttribute?.('ne-role') === 'render-unit';
       if (isKnownBlock || isRenderUnit) {
+        // 高亮块、分栏、折叠和块卡片内部都可能包含 ne-p。若先返回
+        // 内层段落，菜单会误判为正文并把转换结果嵌进旧容器。
+        let structural: HTMLElement | null = el;
+        while (structural && structural !== document.body) {
+          if (STRUCTURAL_BLOCK_TAGS.includes(structural.tagName.toUpperCase() as any)) {
+            return structural;
+          }
+          structural = structural.parentElement;
+        }
+
         if (el.parentElement) {
           const ptagName = el.parentElement.tagName.toLocaleUpperCase()
           if (

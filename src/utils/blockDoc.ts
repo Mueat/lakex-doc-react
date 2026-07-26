@@ -30,16 +30,8 @@ function getChildArray(node: any): any[] | null {
 
 function getNodeName(node: any): string {
   if (!node || typeof node !== 'object') return '';
-  if (node.type === 'element') return String(node.name || '');
+  if (node.type === 'element' || node.type === 'card') return String(node.name || '');
   return String(node.type || '');
-}
-
-function setNodeName(node: any, name: string): void {
-  if (node.type === 'element') {
-    node.name = name;
-  } else {
-    node.type = name;
-  }
 }
 
 function findNodeAndParent(root: any, id: string): NodeLocation | null {
@@ -137,6 +129,155 @@ function createBlockNode(name: string, domLike: boolean): any {
   return createElementNode(name, domLike, [createTextNode(domLike)]);
 }
 
+function cloneNode<T>(node: T): T {
+  return JSON.parse(JSON.stringify(node));
+}
+
+function findDescendantByName(node: any, name: string): any | null {
+  if (getNodeName(node) === name) return node;
+  const children = getChildArray(node);
+  if (!children) return null;
+  for (const child of children) {
+    const found = findDescendantByName(child, name);
+    if (found) return found;
+  }
+  return null;
+}
+
+function getLogicalBlockName(node: any): string {
+  const name = getNodeName(node);
+  if (name === 'oli') return 'ol';
+  if (name === 'uli') return 'ul';
+  if (name === 'tli') return 'taskList';
+  if (name === 'quote' || name === 'blockquote') return 'quote';
+  if (name === 'alert' || name === 'alertHole' || findDescendantByName(node, 'alert')) {
+    return 'callout';
+  }
+  if (name === 'codeblock' || findDescendantByName(node, 'codeblock')) return 'codeblock';
+  if (name === 'columns' || findDescendantByName(node, 'columns')) return 'columns';
+  if (name === 'collapse' || findDescendantByName(node, 'collapse')) return 'collapse';
+  return name;
+}
+
+function collectInlineTextNodes(node: any, domLike: boolean, output: any[]): void {
+  if (!node || typeof node !== 'object') return;
+
+  if (domLike && node.type === 'text') {
+    output.push(cloneNode(node));
+    return;
+  }
+  if (!domLike && typeof node.text === 'string') {
+    output.push(cloneNode(node));
+    return;
+  }
+
+  const children = getChildArray(node);
+  children?.forEach((child) => collectInlineTextNodes(child, domLike, output));
+}
+
+function getSourceInlineContent(node: any, domLike: boolean): any[] {
+  const output: any[] = [];
+  collectInlineTextNodes(node, domLike, output);
+
+  if (output.length > 0) return output;
+
+  const codeNode = getLogicalBlockName(node) === 'codeblock'
+    ? findDescendantByName(node, 'codeblock')
+    : null;
+  const code = codeNode?.attrs?.value?.code ?? node?.attrs?.value?.code;
+  if (typeof code === 'string') return [createTextNode(domLike, code)];
+  return [createTextNode(domLike)];
+}
+
+function getInlinePlainText(children: any[]): string {
+  return children.map((child) => (
+    child?.type === 'text' ? String(child.data || '') : String(child?.text || '')
+  )).join('');
+}
+
+function createTextBlock(
+  name: string,
+  domLike: boolean,
+  inlineChildren: any[],
+  attrs: Record<string, unknown> = {},
+): any {
+  return createElementNode(name, domLike, inlineChildren.map(cloneNode), attrs);
+}
+
+function createConvertedBlock(
+  targetName: string,
+  domLike: boolean,
+  inlineChildren: any[],
+): any | null {
+  if (/^(p|h[1-6])$/.test(targetName)) {
+    return createTextBlock(targetName, domLike, inlineChildren);
+  }
+
+  const listTarget: Record<string, string> = {
+    ol: 'oli',
+    ul: 'uli',
+    taskList: 'tli',
+  };
+  if (listTarget[targetName]) {
+    return createTextBlock(listTarget[targetName], domLike, inlineChildren, {
+      level: 0,
+      start: 0,
+      index: 0,
+      indexType: 0,
+      ...(targetName === 'taskList' ? { checked: false } : {}),
+    });
+  }
+
+  if (targetName === 'quote') {
+    const paragraph = createTextBlock('p', domLike, inlineChildren);
+    return createElementNode(domLike ? 'quote' : 'blockquote', domLike, [paragraph]);
+  }
+
+  if (targetName === 'callout') {
+    const paragraph = createTextBlock('p', domLike, inlineChildren);
+    const alert = createElementNode('alert', domLike, [paragraph], { type: 'info' });
+    return createElementNode('alertHole', domLike, [alert]);
+  }
+
+  if (targetName === 'columns') {
+    const firstParagraph = createTextBlock('p', domLike, inlineChildren);
+    const secondParagraph = createTextBlock('p', domLike, [createTextNode(domLike)]);
+    const columns = createElementNode('columns', domLike, [
+      createElementNode('column', domLike, [firstParagraph], { width: 0.5 }),
+      createElementNode('column', domLike, [secondParagraph], { width: 0.5 }),
+    ]);
+    return createElementNode('containerHole', domLike, [columns]);
+  }
+
+  if (targetName === 'collapse') {
+    const summary = createTextBlock('summary', domLike, inlineChildren);
+    const body = createTextBlock('p', domLike, [createTextNode(domLike)]);
+    const collapse = createElementNode('collapse', domLike, [summary, body], { open: 'true' });
+    return createElementNode('containerHole', domLike, [collapse]);
+  }
+
+  if (targetName === 'codeblock') {
+    const code = getInlinePlainText(inlineChildren);
+    if (!domLike) {
+      return createElementNode(
+        'codeblock',
+        false,
+        [createTextNode(false, code)],
+        { language: 'plain', customStyle: false },
+      );
+    }
+    return createElementNode('codeblock', true, [], {
+      value: {
+        code,
+        mode: 'plain',
+        theme: 'Github Light',
+      },
+    });
+  }
+
+  return null;
+}
+
 export function readBlockDocument(editor: LakexEditorInstance): any | null {
   try {
     const raw = editor?.getDocument?.(DOC_FORMAT);
@@ -231,27 +372,17 @@ export function convertBlock(
   const found = findNodeAndParent(doc, id);
   if (!found) return false;
 
-  const sourceName = getNodeName(found.node);
-  if (sourceName === targetName) return true;
+  if (getLogicalBlockName(found.node) === targetName) return true;
 
-  // p / h1-h6 共享相同的文本 children，可以无损改名。
-  if (/^(p|h[1-6])$/.test(sourceName) && /^(p|h[1-6])$/.test(targetName)) {
-    setNodeName(found.node, targetName);
-    return writeBlockDocument(editor, doc);
-  }
+  const domLike = isDomLikeDocument(doc);
+  const inlineChildren = getSourceInlineContent(found.node, domLike);
+  const replacement = createConvertedBlock(targetName, domLike, inlineChildren);
+  if (!replacement) return false;
 
-  // 其他类型由调用方优先走 Lakex 原生命令；这里保留一个可预测的
-  // JSON fallback，并尽量保留原有文本内容。
-  if (targetName === 'hr') {
-    const replacement = createElementNode('hr', isDomLikeDocument(doc));
-    replacement.id = found.node.id || replacement.id;
-    found.parentArray[found.index] = replacement;
-  } else {
-    setNodeName(found.node, targetName);
-    found.node.attrs ||= {};
-    found.node.children ||= [createTextNode(isDomLikeDocument(doc))];
-  }
-
+  // 用结构完整的新块替换源块，避免 quote/alert/containerHole 相互转换时
+  // 把新组件嵌进旧容器。保留根 id，便于 Lakex 重建 DOM 后维持块标识。
+  replacement.id = found.node.id || replacement.id;
+  found.parentArray[found.index] = replacement;
   return writeBlockDocument(editor, doc);
 }
 
