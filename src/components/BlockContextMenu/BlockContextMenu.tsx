@@ -212,7 +212,7 @@ const MENU_CONFIGS: Record<string, (() => MenuItem[]) | MenuItem[]> = {
 /** "转化为" 子菜单 */
 function getConvertSubmenu(fromType?: string): MenuItem[] {
   return [
-    { action: 'convert', label: 'H1', value: 'h1', icon: <H1Icon />, selected: fromType === 'ne-h1' },
+    { action: 'convert', label: 'H1', value: 'h1', icon: getHeadingIcon("h1"), selected: fromType === 'ne-h1' },
     { action: 'convert', label: 'H2', value: 'h2', icon: <H2Icon />, selected: fromType === 'ne-h2' },
     { action: 'convert', label: 'H3', value: 'h3', icon: <H3Icon />, selected: fromType === 'ne-h3' },
     { action: 'convert', label: 'H4', value: 'h4', icon: <H4Icon />, selected: fromType === 'ne-h4' },
@@ -337,59 +337,60 @@ function getCurrentConvertValue(
 }
 
 // ========== SVG 图标组件 ==========
+// AI
+function AIIcon() {
+  return (
+    <svg width="16px" height="16px" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+      <path d="M128 17c61.304 0 111 49.696 111 111s-49.696 111-111 111H51c-18.778 0-34-15.222-34-34v-77C17 66.696 66.696 17 128 17Zm0 20c-50.258 0-91 40.742-91 91v77c0 7.732 6.268 14 14 14h77c50.258 0 91-40.742 91-91s-40.742-91-91-91ZM99.805 75.308a12 12 0 0 1 8.23 8.23l24.578 85.79c1.521 5.309-1.55 10.846-6.859 12.367-5.31 1.52-10.846-1.55-12.367-6.86l-3.47-12.109H83.082l-3.469 12.11c-1.495 5.219-6.871 8.275-12.097 6.932l-.27-.073c-5.31-1.521-8.38-7.058-6.86-12.368L84.965 83.54c1.825-6.371 8.47-10.057 14.84-8.231ZM173 75c5.523 0 10 4.477 10 10 0 5.355-4.209 9.727-9.499 9.988L173.5 161.5c0 .172-.004.343-.013.513 5.297.253 9.513 4.627 9.513 9.987 0 5.523-4.477 10-10 10h-20c-5.523 0-10-4.477-10-10s4.477-10 10-10l.512.001a10.166 10.166 0 0 1-.012-.501V95h-.5c-5.523 0-10-4.477-10-10s4.477-10 10-10h20Zm-76.5 40.892-7.688 26.834h15.376L96.5 115.892Z" fill="currentColor" fillRule="nonzero"></path>
+    </svg>
+  )
+}
 
+// 转化为
 function ConvertIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M10 3L13 6L10 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M6 13L3 10L6 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M12.5 6H8a3 3 0 010-6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-      <path d="M3.5 10H8a3 3 0 010 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <svg width="16px" height="16px" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" >
+      <path d="m66.77 130.998 25.42 6.812c5.334 1.429 8.5 6.912 7.07 12.247-1.429 5.335-6.912 8.5-12.247 7.071l-21.17-5.672C75.695 180.568 103.246 201 135 201c25.226 0 48.234-12.886 61.569-33.76 2.973-4.654 9.157-6.017 13.81-3.043 4.655 2.973 6.017 9.156 3.044 13.81C196.451 204.574 167.123 221 135 221c-39.108 0-73.2-24.314-86.77-59.453l-6.13 22.887c-1.43 5.335-6.914 8.5-12.248 7.071-5.335-1.43-8.5-6.913-7.071-12.247l7.247-27.046c4.288-16.004 20.738-25.502 36.742-21.214ZM122 35c38.662 0 72.359 23.75 86.25 58.135l5.501-20.538c1.43-5.335 6.913-8.5 12.248-7.071 5.334 1.43 8.5 6.913 7.07 12.247l-6.729 25.114c-4.288 16.004-20.738 25.502-36.742 21.213l-23.555-6.311c-5.335-1.43-8.5-6.913-7.071-12.248 1.429-5.334 6.912-8.5 12.247-7.07l19.66 5.266C180.809 75.094 153.499 55 122 55c-26.405 0-50.336 14.129-63.29 36.594-2.759 4.784-8.874 6.426-13.658 3.668-4.785-2.76-6.427-8.874-3.668-13.659C57.874 53.006 88.373 35 122 35Z" fill="currentColor" fillRule="nonzero"></path>
     </svg>
   );
 }
 
 function DeleteIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4M6 7.333v4M10 7.333v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3.333 4l.667 9.333a1.333 1.333 0 001.333 1.334h5.334a1.333 1.333 0 001.333-1.334L12.667 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg width="16" height="16" viewBox="0 0 1024 1024" fill="none">
+      <path d="M872 272a40 40 0 1 1 0 80h-66.24l-24.64 431.744A136 136 0 0 1 655.04 911.68l-9.728.32H378.688A136 136 0 0 1 242.88 783.744L218.24 352H152a40 40 0 1 1 0-80h720zm-146.368 80H298.304l24.448 427.2a56 56 0 0 0 49.152 52.416l6.784.384h266.624a56 56 0 0 0 55.936-52.8L725.632 352zM432 448c22.08 0 40 17.92 40 40v176a40 40 0 1 1-80 0V488c0-22.08 17.92-40 40-40zm160 0c22.08 0 40 17.92 40 40v176a40 40 0 1 1-80 0V488c0-22.08 17.92-40 40-40zm104-336a40 40 0 1 1 0 80H328a40 40 0 1 1 0-80h368z" fill="currentColor"></path>
     </svg>
   );
 }
 
 function CopyIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect x="5.333" y="5.333" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-      <path d="M10.667 5.333V2.667a1.333 1.333 0 00-1.334-1.334H2.667A1.333 1.333 0 001.333 2.667v8a1.333 1.333 0 001.334 1.333h2.666" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg width="16" height="16" viewBox="0 0 256 256" fill="none">
+      <g fill="none" fillRule="evenodd" stroke="currentColor" strokeWidth="20"><rect x="98" y="38" width="120" height="120" rx="20"></rect><path d="M158 157.295V198c0 11.046-8.954 20-20 20H58c-11.046 0-20-8.954-20-20v-80c0-11.046 8.954-20 20-20h39.6"></path></g>
     </svg>
   );
 }
 
 function CutIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M6 2L2 8l4 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M10 2l4 6-4 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="5" cy="8" r="1" fill="currentColor"/>
-      <circle cx="11" cy="8" r="1" fill="currentColor"/>
+    <svg width="16px" height="16px" viewBox="0 0 1024 1024" fill="currentColor">
+      <path d="M891.257 825.643C901.373 835.76 894.26 853 880 853h-90.6a15.87 15.87 0 0 1-11.264-4.65L510.502 580.03l-80.334 80.601C441.812 683.161 448 708.151 448 734c0 88.318-71.682 160-160 160s-160-71.682-160-160 71.682-160 160-160c26.357 0 51.758 6.38 74.494 18.383l80.208-80.386-80.111-80.378C339.855 443.62 314.456 450 288.1 450c-88.318 0-160-71.682-160-160s71.682-160 160-160 160 71.682 160 160c0 25.848-6.188 50.84-17.832 73.369l80.334 80.6 267.559-268.243c2.93-3.072 7.092-4.726 11.339-4.726H880c14.245 0 21.285 17.33 11.264 27.35L578.4 512l312.857 313.643zM288 370c44.1 0 80-35.9 80-80s-35.9-80-80-80-80 35.9-80 80 35.9 80 80 80zm0 444c44.1 0 80-35.9 80-80s-35.9-80-80-80-80 35.9-80 80 35.9 80 80 80z"></path>
     </svg>
   );
 }
 
 function IndentIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M2 3h8M2 7h4M2 11h8M12 3l3 4-3 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" width="16" height="16" >
+      <path d="M872 594c22.092 0 40 17.908 40 40 0 21.72-17.308 39.392-38.88 39.984L872 674H444c-22.092 0-40-17.908-40-40 0-21.72 17.308-39.392 38.88-39.984L444 594h428zm0-240c22.092 0 40 17.908 40 40 0 21.72-17.308 39.392-38.88 39.984L872 434H444c-22.092 0-40-17.908-40-40 0-21.72 17.308-39.392 38.88-39.984L444 354h428zm0-242c22.092 0 40 17.908 40 40 0 21.72-17.308 39.392-38.88 39.984L872 192H152c-22.092 0-40-17.908-40-40 0-21.72 17.308-39.392 38.88-39.984L152 112h720zm0 722c22.092 0 40 17.908 40 40 0 21.72-17.308 39.392-38.88 39.984L872 914H152c-22.092 0-40-17.908-40-40 0-21.72 17.308-39.392 38.88-39.984L152 834h720zM158.4 362.36l123.12 121.232a25.752 25.752 0 0 1 0 36.816L158.4 641.64c-10.328 10.164-27.068 10.164-37.392 0a25.832 25.832 0 0 1-7.744-18.408V380.768c0-14.38 11.84-26.036 26.44-26.036a26.648 26.648 0 0 1 18.696 7.628z" fill="currentColor"></path>
     </svg>
   );
 }
 
 function OutdentIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M2 3h8M2 7h4M2 11h8M4 3L1 7l3 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" width="16" height="16" >
+      <path d="M872 594c22.092 0 40 17.908 40 40 0 21.72-17.308 39.392-38.88 39.984L872 674H444c-22.092 0-40-17.908-40-40 0-21.72 17.308-39.392 38.88-39.984L444 594h428zm0-240c22.092 0 40 17.908 40 40 0 21.72-17.308 39.392-38.88 39.984L872 434H444c-22.092 0-40-17.908-40-40 0-21.72 17.308-39.392 38.88-39.984L444 354h428zm0-242c22.092 0 40 17.908 40 40 0 21.72-17.308 39.392-38.88 39.984L872 192H152c-22.092 0-40-17.908-40-40 0-21.72 17.308-39.392 38.88-39.984L152 112h720zm0 722c22.092 0 40 17.908 40 40 0 21.72-17.308 39.392-38.88 39.984L872 914H152c-22.092 0-40-17.908-40-40 0-21.72 17.308-39.392 38.88-39.984L152 834h720zM244.128 362.36l-123.12 121.232a25.752 25.752 0 0 0 0 36.816l123.12 121.232c10.328 10.164 27.068 10.164 37.392 0a25.832 25.832 0 0 0 7.744-18.408V380.768c0-14.38-11.84-26.036-26.44-26.036a26.648 26.648 0 0 0-18.696 7.628z" fill="currentColor"></path>
     </svg>
   );
 }
@@ -410,10 +411,16 @@ function ParagraphIcon() {
   );
 }
 
+function getHeadingIcon(heading: string) {
+  return <svg width="16" height="16" aria-hidden="true"><use xlinkHref={`#icon-editor-${heading}`}></use></svg>
+}
+
 function H1Icon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <text x="1" y="13" fontSize="12" fontWeight="bold" fill="currentColor" fontFamily="sans-serif">H1</text>
+    <svg width="16" height="16" viewBox="0 0 256 256" fill="none">
+      <path d="M119.4 221.64c3.467-.173 6.023-1.213 7.67-3.12 1.647-1.907 2.47-4.333 2.47-7.28V48.48c0-2.947-.867-5.373-2.6-7.28s-4.333-2.86-7.8-2.86c-3.813 0-6.457.91-7.93 2.73-1.473 1.82-2.21 4.29-2.21 7.41v70.2H43.84v-70.2c0-2.947-.823-5.373-2.47-7.28-1.647-1.907-4.203-2.86-7.67-2.86-3.467 0-6.067.953-7.8 2.86-1.733 1.907-2.6 4.333-2.6 7.28v162.76c0 2.947.867 5.417 2.6 7.41 1.733 1.993 4.333 2.99 7.8 2.99 3.467-.173 6.023-1.213 7.67-3.12 1.647-1.907 2.47-4.333 2.47-7.28v-74.88H109v74.88c0 2.947.867 5.417 2.6 7.41 1.733 1.993 4.333 2.99 7.8 2.99Zm79-140.94c7.56 0 11.7 3.247 11.7 9.5l-.001 116.799L219 207a8 8 0 1 1 0 16h-38a8 8 0 1 1 0-16l10.699-.001V99.1H184.2c-2.507 0-4.415-.523-5.684-1.671l-.177-.168c-1.295-1.296-1.839-3.627-1.839-7.061 0-3.413.62-5.853 2.008-7.328 1.384-1.471 3.445-2.172 6.092-2.172Z"
+		fill="currentColor" fillRule="evenodd">
+		</path>
     </svg>
   );
 }
@@ -579,8 +586,8 @@ function AiOutlineIcon() {
 
 function LinkIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M6.25 9.75l3.5-3.5M5.2 11.9l-1.1 1.1a2.2 2.2 0 01-3.1-3.1l2.1-2.1a2.2 2.2 0 013.1 0M10.8 4.1L11.9 3a2.2 2.2 0 013.1 3.1l-2.1 2.1a2.2 2.2 0 01-3.1 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <svg width="16" height="16" viewBox="0 0 256 256" fill="none" aria-hidden="true">
+      <g fill="none" fillRule="evenodd"><path d="M61.849 218h0H58c-11.046 0-20-8.954-20-20V46c0-11.046 8.954-20 20-20h140c11.046 0 20 8.954 20 20v7.59h0" stroke="currentColor" strokeWidth="20" strokeLinecap="round"></path><path d="m148.538 123.755 21.645-21.645c14.156-14.156 37.206-14.056 51.485.222 14.278 14.279 14.378 37.33.222 51.485l-21.645 21.645m-22.783 22.783-21.645 21.645c-14.156 14.156-37.206 14.056-51.485-.222-14.278-14.279-14.378-37.33-.222-51.485l21.645-21.645m63.917-12.21-53.696 53.696" stroke="currentColor" strokeWidth="20" strokeLinecap="round"></path></g>
     </svg>
   );
 }

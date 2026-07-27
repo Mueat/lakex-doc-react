@@ -316,12 +316,12 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
 
     container.addEventListener('mousemove', handleMouseMove, true);
     container.addEventListener('mouseleave', handleMouseLeave, true);
-    container.addEventListener('contextmenu', handleContextMenu, true);
+    // container.addEventListener('contextmenu', handleContextMenu, true);
 
     return () => {
       container.removeEventListener('mousemove', handleMouseMove, true);
       container.removeEventListener('mouseleave', handleMouseLeave, true);
-      container.removeEventListener('contextmenu', handleContextMenu, true);
+      // container.removeEventListener('contextmenu', handleContextMenu, true);
       if (hideTimerRef.current !== null) {
         clearTimeout(hideTimerRef.current);
       }
@@ -592,8 +592,6 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
     }
   }, [forwardedRef]);
 
-  // if (!visible || !hoverState.blockElement) return null;
-
   return (
     <div
       ref={setRefs}
@@ -608,6 +606,19 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       aria-label={language === 'en-us' ? 'Click or drag' : '可点击和拖拽'}
       onMouseDown={(event) => {
         startDrag(event);
+      }}
+      onContextMenu={(event) => {
+        const blockElement = hoverStateRef.current.blockElement;
+        if (!blockElement || !onContextMenu) return;
+        event.preventDefault();
+        mouseoutPausedRef.current = true;
+        const rect = handleRef.current?.getBoundingClientRect();
+        onContextMenu(blockElement, {
+          clientX: rect?.left ?? 0,
+          clientY: rect?.bottom ?? 0,
+          preventDefault() {},
+          stopPropagation() {},
+        } as unknown as MouseEvent);
       }}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
