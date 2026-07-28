@@ -94,6 +94,7 @@ const GetDefaultSlashConfig = (lan: 'zh-cn' | 'en-us') => {
                     "type": "normal",
                     "items": [
                         // "mention",
+                        "custom-drawing-board",
                         "calendar",
                         "dateCard",
                         "unicodeEmoji",
@@ -187,6 +188,7 @@ const GetDefaultSlashConfig = (lan: 'zh-cn' | 'en-us') => {
                     "name": "group-files",
                     "type": "normal",
                     "items": [
+                        "custom-drawing-board",
                         "dateCard",
                         "unicodeEmoji"
                     ]
@@ -279,6 +281,7 @@ const GetDefaultSlashConfig = (lan: 'zh-cn' | 'en-us') => {
                     "name": "group-files",
                     "type": "normal",
                     "items": [
+                        "custom-drawing-board",
                         "calendar",
                         "dateCard",
                         "unicodeEmoji"

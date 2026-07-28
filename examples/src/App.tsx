@@ -1,43 +1,40 @@
-import { useState } from 'react';
-import { LakexEditor, BlockMenuAction } from '@dlient/lakex-doc-react';
+import { useState } from "react";
+import { LakexEditor, BlockMenuAction } from "@dlient/lakex-doc-react";
 // @ts-ignore
-import './App.css';
+import "./App.css";
 
 function App() {
   const [isDark, setIsDark] = useState(false);
-  const [language, setLanguage] = useState<'zh-cn' | 'en-us'>('zh-cn');
-  const [content, setContent] = useState("{}")
-  const [lastAction, setLastAction] = useState<string>('');
+  const [language, setLanguage] = useState<"zh-cn" | "en-us">("zh-cn");
+  const [content, setContent] = useState("{}");
+  const [lastAction, setLastAction] = useState<string>("");
 
   const handleContentChange = (contents: any[]) => {
-    const jsonContent = contents.find((c) => c.type === 'json')?.text;
+    const jsonContent = contents.find((c) => c.type === "json")?.text;
     if (jsonContent) {
       setContent(jsonContent);
-      console.log('Content changed:', jsonContent);
+      console.log("Content changed:", jsonContent);
     }
   };
 
   // 块操作回调（用于测试右键菜单动作）
   const handleBlockAction = (action: BlockMenuAction, data: any) => {
-    const actionText = `${action} -> ${data.blockType}${data.payload ? ` (${data.payload})` : ''}`;
+    const actionText = `${action} -> ${data.blockType}${data.payload ? ` (${data.payload})` : ""}`;
     setLastAction(actionText);
-    console.log('[BlockAction]', actionText, data);
+    console.log("[BlockAction]", actionText, data);
   };
 
   return (
-    <div style={{display: 'flex', height:'100vh', width: '100%'}}>
-      <div className={`app-container ${isDark ? 'dark' : ''}`}>
+    <div style={{ display: "flex", height: "100vh", width: "100%" }}>
+      <div className={`app-container ${isDark ? "dark" : ""}`}>
         <div className="floating-controls">
-          <button
-            className="control-button"
-            onClick={() => setIsDark(!isDark)}
-          >
-            {isDark ? 'Light Mode' : 'Dark Mode'}
+          <button className="control-button" onClick={() => setIsDark(!isDark)}>
+            {isDark ? "Light Mode" : "Dark Mode"}
           </button>
           <select
             className="control-select"
             value={language}
-            onChange={(e) => setLanguage(e.target.value as 'zh-cn' | 'en-us')}
+            onChange={(e) => setLanguage(e.target.value as "zh-cn" | "en-us")}
           >
             <option value="zh-cn">中文</option>
             <option value="en-us">English</option>
@@ -47,10 +44,7 @@ function App() {
         {lastAction && (
           <div className="action-toast">
             操作: {lastAction}
-            <button
-              className="action-close"
-              onClick={() => setLastAction('')}
-            >
+            <button className="action-close" onClick={() => setLastAction("")}>
               ×
             </button>
           </div>
@@ -64,8 +58,12 @@ function App() {
           />
         </div>
       </div>
-      <div style={{width: 500, height: '100vh'}}>
-            <pre lang='json' style={{height: '100%', overflowY: 'scroll'}} dangerouslySetInnerHTML={{__html: JSON.stringify(content, null, 2)}}></pre>
+      <div style={{ width: 500, height: "100vh" }}>
+        <pre
+          lang="json"
+          style={{ height: "100%", overflowY: "scroll" }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(content, null, 2) }}
+        ></pre>
       </div>
     </div>
   );
