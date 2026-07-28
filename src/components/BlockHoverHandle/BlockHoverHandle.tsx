@@ -10,8 +10,11 @@
 
 import React, { useEffect, useRef, useCallback, useState, forwardRef } from 'react';
 import './BlockHoverHandle.css';
-import { moveBlock } from '../../utils/blockDoc';
+import { moveBlock, deleteBlock, duplicateBlock, convertBlock, insertBlock } from '../../utils/blockDoc';
 import type { HeadingConfig } from '../lakex/types';
+import { BlockContextMenu, BlockMenuAction } from '../BlockContextMenu';
+import { useBlockContextMenu } from './useBlockContextMenu';
+import { selectBlockInEditor, runNativeConvert, copyDomBlock, copyText } from './blockMenuHelpers';
 
 /** 支持 hover 检测的块节点标签名集合 */
 const BLOCK_TAGS = [
@@ -46,10 +49,15 @@ const STRUCTURAL_BLOCK_TAGS = [
 export interface BlockHoverHandleProps {
   containerRef: React.RefObject<HTMLElement | null>;
   editor: any;
-  onContextMenu?: (blockElement: HTMLElement, event: MouseEvent) => void;
   language?: 'zh-cn' | 'en-us';
   /** 暗黑模式：true 时手柄使用暗色配色 */
   dark?: boolean;
+  /** 块操作回调（右键菜单动作触发时调用），透传给 BlockContextMenu */
+  onBlockAction?: (action: BlockMenuAction, data: {
+    blockElement: HTMLElement;
+    blockType: string;
+    payload?: string;
+  }) => void;
   /** 标题配置（anchor / folding）。标题块左侧会渲染锚点/折叠按钮，
    *  手柄需按开启数量左移：0 个开启→不偏移，1 个→20px，2 个→40px */
   heading?: HeadingConfig;
@@ -64,10 +72,10 @@ interface HoverState {
 export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps>(({
   containerRef,
   editor,
-  onContextMenu,
   language = 'zh-cn',
   dark = false,
   heading,
+  onBlockAction,
 }, forwardedRef) => {
   const [hoverState, setHoverState] = useState<HoverState>({
     blockElement: null,
@@ -89,6 +97,170 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
   const handleHoveredRef = useRef(false);
   // 拖拽进行中：期间忽略 mouseover/mouseout，避免干扰拖拽并减少重渲染
   const isDraggingRef = useRef(false);
+
+  // ========== 右键上下文菜单：状态 + 点击事件 + 动作处理（封装在 BlockHoverHandle 文件夹） ==========
+  const { contextMenuState, showContextMenu, closeContextMenu } = useBlockContextMenu({ hoverHandleRef: handleRef });
+
+  // 卡片选择配置（editor 初始化后从 slash 插件读取）
+  const [cardSelectConfig, setCardSelectConfig] = useState<{
+    groups?: unknown[];
+    [key: string]: unknown;
+  } | null>(null);
+  useEffect(() => {
+    if (!editor) return;
+    const parsed = editor.plugins?.slash?.option?.getParsedConfig?.('general', 'cardSelect');
+    setCardSelectConfig(parsed || null);
+  }, [editor]);
+
+  // 处理右键菜单动作
+  const handleMenuAction = useCallback(async (action: BlockMenuAction, data: { blockElement: HTMLElement; blockType: string; payload?: string }) => {
+    if (!editor || !data.blockElement) return;
+
+    const blockId = data.blockElement.getAttribute('id');
+
+    switch (action) {
+      case 'delete': {
+        const range = document.createRange();
+        const el = document.getElementById(blockId);
+        if (el) {
+          range.selectNode(el);
+          const t = editor.engine.transformDOMRange(range),
+                      n = t.start,
+                      r = t.end,
+                      o = editor.renderer.kernel.createModelRange(n, r);
+          editor.kernel.execCommand("deleteByRange", o);
+        }
+        break;
+      }
+      case 'copy': {
+        if (!copyDomBlock(editor, data.blockElement)) {
+          await copyText(data.blockElement.innerText || data.blockElement.textContent || "");
+        }
+        break;
+      }
+      case 'cut': {
+        const copied = copyDomBlock(editor, data.blockElement)
+          || await copyText(data.blockElement.innerText || data.blockElement.textContent || "");
+        if (copied && blockId && document.getElementById(blockId)) {
+          deleteBlock(editor, blockId);
+        }
+        break;
+      }
+      case 'convert': {
+        if (blockId && data.payload) {
+          // JSON 替换能完整移除 quote/alert/containerHole 外壳并保留文本；
+          // 仅在无法读取当前文档时才回退到 Lakex 原生命令。
+          const ok = convertBlock(editor, blockId, data.payload)
+            || runNativeConvert(editor, data.blockElement, data.payload);
+          if (!ok) {
+            console.warn('[LakexEditor] 转换块类型失败:', data.payload);
+          }
+        }
+        break;
+      }
+      case 'indent':
+      case 'outdent': {
+        try {
+          selectBlockInEditor(editor, data.blockElement);
+          editor.execCommand(action);
+        } catch {
+          console.warn(`[LakexEditor] ${action} 仅适用于支持缩进的块`);
+        }
+        break;
+      }
+      case 'addAfter':
+      case 'addBefore': {
+        if (blockId && data.payload) {
+          const ok = insertBlock(
+            editor,
+            blockId,
+            action === 'addAfter' ? 'after' : 'before',
+            data.payload === 'cardSelect' ? 'p' : data.payload,
+          );
+          if (!ok) {
+            console.warn('[LakexEditor] 添加块失败:', data.payload);
+          }
+        }
+        break;
+      }
+      case 'duplicate': {
+        if (blockId) {
+          duplicateBlock(editor, blockId);
+        }
+        break;
+      }
+      case 'copyLink': {
+        if (blockId) {
+          const url = new URL(window.location.href);
+          url.hash = blockId;
+          await copyText(url.toString());
+        }
+        break;
+      }
+      case 'aiOutline':
+        // 由业务层接入具体 AI 服务；下方的 onBlockAction 会携带当前块。
+        break;
+      default:
+        console.warn('[LakexEditor] 未处理的菜单动作:', action);
+    }
+
+    if (onBlockAction) {
+      onBlockAction(action, data);
+    }
+  }, [editor, onBlockAction]);
+
+  // 卡片选择（从块菜单插入卡片）
+  const handleCardSelect = useCallback((
+    item: any,
+    args: any[],
+    blockElement: HTMLElement,
+  ) => {
+    if (!editor) return;
+    const blockId = blockElement.getAttribute('id');
+    if (!blockId || !insertBlock(editor, blockId, 'after', 'p')) {
+      console.warn('[LakexEditor] 无法在当前块下方创建卡片插入位置');
+      return;
+    }
+
+    window.setTimeout(() => {
+      const sourceBlock = document.getElementById(blockId);
+      const insertionBlock = sourceBlock?.nextElementSibling as HTMLElement | null;
+      if (!insertionBlock || !selectBlockInEditor(editor, insertionBlock)) {
+        console.warn('[LakexEditor] 无法定位到新建的下方段落');
+        return;
+      }
+
+      const normalizedArgs = item?.type === 'TableItem'
+        ? [{
+            col: args?.[0]?.col || 3,
+            row: args?.[0]?.row || 3,
+          }]
+        : args;
+
+      if (item?.type === 'CommandItem') {
+        if (typeof item.execute === 'function') {
+          item.execute();
+        } else if (item.commandName && editor.queryCommandEnabled(item.commandName)) {
+          editor.execCommand(item.commandName, item.value);
+        }
+      } else if (item?.type !== 'PageItem') {
+        const detail = {
+          item,
+          name: item?.name,
+          args: item?.type === 'SubMenu' ? undefined : normalizedArgs,
+          inputValue: '',
+        };
+        editor.emitPluginEvent('insertCardByUI', detail);
+        editor.emitPluginEvent(`insertCardByUI:${item?.name}`, detail);
+      }
+
+      editor.emitEvent?.('userAction', {
+        type: 'insertCard',
+        name: item?.label,
+        source: 'blockMenu',
+      });
+    }, 16);
+  }, [editor]);
 
   // 给当前 hover 的块节点加/去高亮 class（鼠标移到手柄时高亮对应节点）
   const setBlockHighlight = useCallback((show: boolean) => {
@@ -304,11 +476,11 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       const blockEl =
         resolveBlockNode(target, e.clientX, e.clientY) ||
         hoverStateRef.current.blockElement;
-      if (blockEl && onContextMenu) {
+      if (blockEl) {
         e.preventDefault();
         e.stopPropagation();
         mouseoutPausedRef.current = true;
-        onContextMenu(blockEl, e);
+        showContextMenu(blockEl, e);
       } else {
         e.preventDefault();
       }
@@ -326,7 +498,7 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
         clearTimeout(hideTimerRef.current);
       }
     };
-  }, [containerRef, findBlockNode, resolveBlockNode, showHandle, hideHandle, onContextMenu]);
+  }, [containerRef, findBlockNode, resolveBlockNode, showHandle, hideHandle]);
 
   // ========== 滚动时更新位置 ==========
   useEffect(() => {
@@ -527,15 +699,13 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       // 未达阈值 → 视为点击，弹菜单
       if (!moved) {
         mouseoutPausedRef.current = true;
-        if (onContextMenu) {
-          const rect = handleRef.current?.getBoundingClientRect();
-          onContextMenu(draggedEl, {
-            clientX: rect ? rect.left : upEvent.clientX,
-            clientY: rect ? rect.bottom : upEvent.clientY,
-            preventDefault() {},
-            stopPropagation() {},
-          } as unknown as MouseEvent);
-        }
+        const rect = handleRef.current?.getBoundingClientRect();
+        showContextMenu(draggedEl, {
+          clientX: rect ? rect.left : upEvent.clientX,
+          clientY: rect ? rect.bottom : upEvent.clientY,
+          preventDefault() {},
+          stopPropagation() {},
+        } as unknown as MouseEvent);
         return;
       }
 
@@ -570,7 +740,7 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [editor, findBlockNode, onContextMenu]);
+  }, [editor, findBlockNode]);
 
   // ========== 暴露 __resumeHover 供外部调用 ==========
   useEffect(() => {
@@ -593,6 +763,7 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
   }, [forwardedRef]);
 
   return (
+    <>
     <div
       ref={setRefs}
       className={`ne-block-hover-handle${dark ? ' ne-block-hover-handle--dark' : ''}`}
@@ -609,25 +780,19 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       }}
       onContextMenu={(event) => {
         const blockElement = hoverStateRef.current.blockElement;
-        if (!blockElement || !onContextMenu) return;
+        if (!blockElement) return;
         event.preventDefault();
         mouseoutPausedRef.current = true;
-        const rect = handleRef.current?.getBoundingClientRect();
-        onContextMenu(blockElement, {
-          clientX: rect?.left ?? 0,
-          clientY: rect?.bottom ?? 0,
-          preventDefault() {},
-          stopPropagation() {},
-        } as unknown as MouseEvent);
+        showContextMenu(blockElement, event.nativeEvent);
       }}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         const blockElement = hoverStateRef.current.blockElement;
-        if (!blockElement || !onContextMenu) return;
+        if (!blockElement) return;
         event.preventDefault();
         mouseoutPausedRef.current = true;
         const rect = handleRef.current?.getBoundingClientRect();
-        onContextMenu(blockElement, {
+        showContextMenu(blockElement, {
           clientX: rect?.left ?? 0,
           clientY: rect?.bottom ?? 0,
           preventDefault() {},
@@ -671,6 +836,22 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
         {language === 'en-us' ? 'Click or drag' : '可点击和拖拽'}
       </span>
     </div>
+
+    {/* 右键上下文菜单（与悬浮手柄同属 BlockHoverHandle 逻辑） */}
+    <BlockContextMenu
+      visible={contextMenuState.visible}
+      position={contextMenuState.position}
+      blockType={contextMenuState.blockType}
+      blockElement={contextMenuState.blockElement}
+      editor={editor}
+      language={language}
+      dark={dark}
+      onClose={closeContextMenu}
+      onAction={handleMenuAction}
+      cardSelectConfig={cardSelectConfig}
+      onCardSelect={handleCardSelect}
+    />
+    </>
   );
 });
 
