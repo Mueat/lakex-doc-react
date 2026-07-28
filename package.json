@@ -45,12 +45,26 @@
     "react-dom": "^18.0.0"
   },
   "dependencies": {
+    "lakex-drawnix": "^0.1.0",
+    "lakex-drawnix-react-board": "^0.1.0",
+    "lakex-drawnix-react-text": "^0.1.0",
+    "@plait/common": "^0.93.1",
+    "@plait/core": "^0.93.1",
+    "@plait/draw": "^0.93.1",
+    "@plait/mind": "^0.93.1",
+    "@plait/text-plugins": "^0.93.1",
     "@plantuml/core": "^1.2026.6",
     "@viz-js/viz": "^3.28.0",
     "@xiangfa/mindmap": "0.7.1",
+    "classnames": "^2.5.1",
     "flowchart.ts": "^3.0.1",
     "mermaid": "^11.16.0",
-    "patch-package": "^8.0.0"
+    "patch-package": "^8.0.0",
+    "roughjs": "^4.6.6",
+    "slate": "^0.116.0",
+    "slate-dom": "^0.116.0",
+    "slate-history": "^0.115.0",
+    "slate-react": "^0.116.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

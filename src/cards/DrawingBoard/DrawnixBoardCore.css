@@ -1,0 +1,473 @@
+/*
+ * The published package does not export its stylesheet subpath. Vite inlines
+ * this dependency during the Lakex library build, so consumers still receive a
+ * single dist/style.css file.
+ */
+@import "../../../node_modules/lakex-drawnix-react-board/index.css";
+@import "../../../node_modules/lakex-drawnix-react-text/index.css";
+@import "../../../node_modules/lakex-drawnix/index.css";
+
+.lakex-drawnix-core {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  overflow: hidden;
+  background: #f5f7fa;
+  border: 1px solid #e3e6eb;
+  border-radius: 8px;
+}
+
+.lakex-drawnix-core[data-theme="dark"] {
+  background: #141414;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.lakex-drawnix-core[data-theme="dark"] > .drawnix {
+  --island-bg-color: #242424;
+  --island-border-color: #3d3d3d;
+  --shadow-island: 0 8px 24px rgba(0, 0, 0, 0.32);
+  --color-on-surface: #d6d6d6;
+  --color-surface-high: #333;
+  --color-surface-mid: #2b2b2b;
+  --color-surface-low: #242424;
+  --color-surface-lowest: #1f1f1f;
+  --color-gray-20: #3d3d3d;
+  --color-gray-30: #555;
+  --color-gray-60: #aaa;
+  --color-gray-90: #f5f5f5;
+  --default-border-color: #3d3d3d;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .theme-toolbar select {
+  background: #242424;
+  color: #d6d6d6;
+}
+
+.lakex-drawnix-core > .drawnix {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lakex-drawnix-core .plait-board-container,
+.lakex-drawnix-core .viewport-container {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Plait uses the scroll container internally to pan an infinite canvas. Keep
+   that behavior, but do not expose browser scrollbars in the card UI. */
+.lakex-drawnix-core .viewport-container {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.lakex-drawnix-core .viewport-container::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* react-board owns interaction handles in a separate SVG layer. The published
+   Drawnix stylesheet omits these base rules, which makes resize/rotate controls
+   participate in normal layout and appear to be missing. */
+.lakex-drawnix-core .board-active-svg {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.lakex-drawnix-core .board-host-svg {
+  position: relative;
+  z-index: 1;
+}
+
+/* The native popup is mounted inside `.drawnix`, next to the board SVG. The
+   board host has its own stacking layer for selection hit-testing, so the
+   popup needs an explicit layer above it to remain visible. */
+.lakex-drawnix-core .popup-toolbar {
+  z-index: 130 !important;
+}
+
+/* Color pickers, arrow selectors and the more-actions menu are rendered as
+   sibling floating dialogs by the native toolbar. They must share the popup
+   layer; otherwise the board SVG (z-index: 1) paints over them. */
+.lakex-drawnix-core .plait-board-container [role="dialog"] {
+  z-index: 140 !important;
+}
+
+/* Application/file menu does not belong inside a document card. */
+.lakex-drawnix-core .app-toolbar {
+  display: none !important;
+}
+
+/* Yuque-style vertical creation rail. Drawing behavior remains in Drawnix;
+   Lakex only adapts the surrounding product chrome. */
+.lakex-drawnix-core .draw-toolbar {
+  z-index: 20;
+  top: 50%;
+  left: 18px;
+  transform: translateY(-50%);
+}
+
+.lakex-drawnix-core .draw-toolbar .stack_horizontal {
+  grid-template-rows: none;
+  grid-template-columns: auto;
+  grid-auto-flow: row;
+}
+
+/* Drawnix already provides localized title attributes. Render them as visible
+   tooltips so the vertical rail has the same discoverability as Yuque. */
+.lakex-drawnix-core .draw-toolbar .tool-icon[title]::after {
+  position: absolute;
+  z-index: 120;
+  top: 50%;
+  left: calc(100% + 10px);
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: rgba(31, 35, 41, 0.92);
+  color: #fff;
+  content: attr(title);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(2px, -50%);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+  white-space: nowrap;
+}
+
+.lakex-drawnix-core .draw-toolbar .tool-icon[title]:hover::after,
+.lakex-drawnix-core .draw-toolbar .tool-icon[title]:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+/* The final upstream item opens Mermaid/Markdown extra tools, which are
+   intentionally excluded from the card product. */
+.lakex-drawnix-core
+  .draw-toolbar
+  button:is([title="更多工具"], [title="More tools"], [title="Extra Tools"]) {
+  display: none !important;
+}
+
+.lakex-drawnix-core .zoom-toolbar {
+  z-index: 20;
+  top: 20px;
+  right: 20px;
+}
+
+/* Keep the native theme entry. Lakex light/dark changes are also pushed into
+   the same board theme state by DrawnixBoardCore. */
+.lakex-drawnix-core .theme-toolbar {
+  z-index: 20;
+  right: 20px;
+  bottom: 20px;
+}
+
+.lakex-drawnix-core .pencil-mode-toolbar {
+  z-index: 30;
+  top: 50%;
+  left: 76px;
+  transform: translateY(-50%);
+}
+
+/* Creation popovers in upstream Drawnix assume a horizontal top toolbar and
+   default to a bottom placement. Re-anchor the three creation panels beside
+   Lakex's vertical rail. */
+.lakex-drawnix-core
+  [role="dialog"]:has(
+    button[title="画笔 — P"],
+    button[title="Freehand — P"],
+    button[title="橡皮擦 — E"],
+    button[title="Eraser — E"]
+  ) {
+  z-index: 100;
+  top: 50% !important;
+  left: 64px !important;
+  transform: translateY(-50%) !important;
+}
+
+.lakex-drawnix-core
+  [role="dialog"]:has(
+    button[title="直线"],
+    button[title="Straight"],
+    button[title="肘线"],
+    button[title="Elbow"]
+  ) {
+  z-index: 100;
+  top: calc(50% + 40px) !important;
+  left: 64px !important;
+  transform: translateY(-50%) !important;
+}
+
+.lakex-shape-catalog {
+  position: absolute;
+  z-index: 110;
+  top: 50%;
+  left: 76px;
+  box-sizing: border-box;
+  width: min(300px, calc(100% - 116px));
+  max-height: calc(100% - 40px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--island-border-color, #eee);
+  border-radius: 8px;
+  background: var(--island-bg-color, #fff);
+  box-shadow: var(--shadow-island, 0 10px 30px rgba(0, 0, 0, 0.14));
+  color: var(--color-on-surface, #333);
+  transform: translateY(-50%);
+}
+
+.lakex-shape-catalog__tabs {
+  display: flex;
+  gap: 20px;
+  padding: 0 18px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-gray-20, #ebebeb);
+  scrollbar-width: none;
+}
+
+.lakex-shape-catalog__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.lakex-shape-catalog__tab {
+  position: relative;
+  flex: 0 0 auto;
+  height: 50px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-gray-60, #7a7a7a);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+}
+
+.lakex-shape-catalog__tab[aria-selected="true"] {
+  color: var(--color-gray-90, #1e1e1e);
+  font-weight: 600;
+}
+
+.lakex-shape-catalog__tab[aria-selected="true"]::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--color-primary, #6698ff);
+  content: "";
+}
+
+.lakex-shape-catalog__body {
+  position: relative;
+  max-height: min(272px, calc(100vh - 120px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scrollbar-color: var(--color-gray-30, #d6d6d6) transparent;
+  scrollbar-width: thin;
+}
+
+.lakex-shape-catalog__body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lakex-shape-catalog__body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--color-gray-30, #d6d6d6);
+}
+
+.lakex-shape-catalog__section {
+  position: relative;
+  scroll-margin-top: 0;
+}
+
+.lakex-shape-catalog__title {
+  padding: 12px 16px 6px;
+  font-size: 14px;
+  color: var(--color-gray-90);
+}
+
+.lakex-shape-catalog__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(36px, 1fr));
+  gap: 2px;
+  padding: 0 8px 6px;
+}
+
+.lakex-shape-catalog__shape {
+  display: flex;
+  min-width: 0;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-on-surface, #555);
+  cursor: pointer;
+  font: inherit;
+}
+
+.lakex-shape-catalog__shape:hover {
+  border-color: var(--color-primary-light-darker, #cce0ff);
+  background: var(--color-surface-primary-container, rgba(102, 152, 255, 0.1));
+  color: var(--color-primary, #6698ff);
+}
+
+.lakex-shape-catalog__shape svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+/* Plain text nodes should grow horizontally while typing. The default
+   published Drawnix CSS constrains the initial foreignObject to a tiny width,
+   which otherwise forces every CJK character onto a new line. */
+.lakex-drawnix-core .plait-board-container .text .plait-text-container,
+.lakex-drawnix-core .plait-board-container .text .slate-editable-container,
+.lakex-drawnix-core .plait-board-container .text [data-slate-node="element"] {
+  min-width: 36px;
+  overflow: visible;
+  white-space: pre !important;
+}
+
+.lakex-font-size-control {
+  display: flex;
+  box-sizing: border-box;
+  width: 52px;
+  height: 30px;
+  align-items: stretch;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--color-surface-mid, #f5f5f5);
+}
+
+.lakex-font-size-control input {
+  box-sizing: border-box;
+  width: 34px;
+  padding: 0 3px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-on-surface, #333);
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.lakex-font-size-control input::-webkit-inner-spin-button,
+.lakex-font-size-control input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.lakex-font-size-control__steps {
+  display: flex;
+  width: 18px;
+  flex-direction: column;
+}
+
+.lakex-font-size-control__steps button {
+  width: 18px;
+  height: 50%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-on-surface, #666);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lakex-font-size-control__steps button:hover {
+  background: var(--color-surface-primary-container, rgba(102, 152, 255, 0.1));
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-shape-catalog {
+  --island-bg-color: #242424;
+  --island-border-color: #3d3d3d;
+  --color-on-surface: #ddd;
+  --color-gray-60: #aaa;
+  --color-gray-90: #f5f5f5;
+  --color-gray-20: #3d3d3d;
+}
+
+.lakex-drawnix-core--readonly .draw-toolbar,
+.lakex-drawnix-core--readonly .app-toolbar,
+.lakex-drawnix-core--readonly .theme-toolbar,
+.lakex-drawnix-core--readonly .pencil-mode-toolbar,
+.lakex-drawnix-core--readonly .popup-toolbar {
+  display: none !important;
+}
+
+@media (max-width: 720px) {
+  .lakex-drawnix-core .draw-toolbar {
+    top: auto;
+    bottom: 14px;
+    left: 50%;
+    max-width: calc(100% - 28px);
+    overflow-x: auto;
+    transform: translateX(-50%);
+  }
+
+  .lakex-drawnix-core .draw-toolbar .stack_horizontal {
+    grid-template-rows: auto;
+    grid-auto-flow: column;
+  }
+
+  .lakex-drawnix-core .draw-toolbar .tool-icon[title]::after {
+    top: auto;
+    right: auto;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translate(-50%, 2px);
+  }
+
+  .lakex-drawnix-core .draw-toolbar .tool-icon[title]:hover::after,
+  .lakex-drawnix-core .draw-toolbar .tool-icon[title]:focus-visible::after {
+    transform: translate(-50%, 0);
+  }
+
+  .lakex-shape-catalog {
+    top: auto;
+    right: 14px;
+    bottom: 64px;
+    left: 14px;
+    width: auto;
+    max-height: calc(100% - 86px);
+    transform: none;
+  }
+
+  .lakex-shape-catalog__grid {
+    grid-template-columns: repeat(6, minmax(42px, 1fr));
+  }
+
+  .lakex-drawnix-core .zoom-toolbar {
+    top: 12px;
+    right: 12px;
+  }
+}

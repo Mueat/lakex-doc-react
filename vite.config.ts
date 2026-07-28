@@ -14,6 +14,15 @@ import react from '@vitejs/plugin-react';
 // externalized (consumer-provided) React, guaranteeing a single instance.
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // lakex-drawnix@0.1.0 keeps the upstream import specifiers in its
+    // published bundle. Resolve those specifiers to the Lakex-maintained
+    // packages while bundling, without exposing the old packages to users.
+    alias: {
+      '@plait-board/react-board': 'lakex-drawnix-react-board',
+      '@plait-board/react-text': 'lakex-drawnix-react-text',
+    },
+  },
   build: {
     lib: {
       entry: 'src/index.ts',
