@@ -71,10 +71,13 @@ export { textToDiagramCard } from "./cards/TextToDiagram";
 export { mindMapCard } from "./cards/MindMapCard";
 export {
   drawingBoardCard,
+  flowchartBoardCard,
+  umlBoardCard,
+  mindmapBoardCard,
   DrawingBoardEditor,
   DrawingBoardViewer,
 } from "./cards/DrawingBoard";
-export type { IDrawingBoardCardValue } from "./cards/DrawingBoard";
+export type { DrawingBoardPreset, IDrawingBoardCardValue } from "./cards/DrawingBoard";
 
 // export default config
 export { default as GetDefaultEditorConfig} from './configs/editor'

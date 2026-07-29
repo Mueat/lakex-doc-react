@@ -111,6 +111,72 @@
   display: none !important;
 }
 
+.lakex-drawnix-export {
+  position: relative;
+  z-index: 40;
+}
+
+.lakex-drawnix-export__menu button {
+  border: 1px solid var(--island-border-color, #eee);
+  background: var(--island-bg-color, #fff);
+  color: var(--icon-fill-color, #666);
+  box-shadow: var(--shadow-island, 0 0 16px #00000014);
+}
+
+.lakex-drawnix-export__trigger {
+  width: var(--lg-button-size, 36px);
+  height: var(--lg-button-size, 36px);
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--icon-fill-color, #666);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.lakex-drawnix-export__trigger:hover,
+.lakex-drawnix-export__trigger:focus-visible,
+.lakex-drawnix-export__menu button:hover {
+  background: var(--color-surface-primary-container, #eef4ff);
+  color: var(--color-primary, #6698ff);
+}
+
+.lakex-drawnix-export__trigger svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.lakex-drawnix-export__menu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 8px);
+  width: 132px;
+  padding: 4px;
+  border: 1px solid var(--island-border-color, #eee);
+  border-radius: 8px;
+  background: var(--island-bg-color, #fff);
+  box-shadow: var(--shadow-island, 0 0 16px #00000014);
+}
+
+.lakex-drawnix-export__menu button {
+  width: 100%;
+  border: 0;
+  box-shadow: none;
+  border-radius: 5px;
+  cursor: pointer;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+}
+
 /* Yuque-style vertical creation rail. Drawing behavior remains in Drawnix;
    Lakex only adapts the surrounding product chrome. */
 .lakex-drawnix-core .draw-toolbar {
