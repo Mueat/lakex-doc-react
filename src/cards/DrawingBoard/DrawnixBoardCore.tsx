@@ -7,7 +7,11 @@
 import React from "react";
 import { Drawnix } from "lakex-drawnix";
 import {
+  addSelectedElement,
   BoardTransforms,
+  clearSelectedElement,
+  getHitElementByPoint,
+  getViewportOrigination,
   getSelectedElements,
   PlaitBoard,
   ThemeColorMode,
@@ -47,6 +51,10 @@ import {
 } from "@plait/text-plugins";
 import LakexShapeCatalog from "./LakexShapeCatalog";
 import LakexExportMenu from "./LakexExportMenu";
+import LakexMaterialLibrary, {
+  type LakexMaterialLibraryHandle,
+} from "./LakexMaterialLibrary";
+import LakexBoardContextMenu from "./LakexBoardContextMenu";
 import type { DrawingBoardPreset, IDrawingBoardCardValue } from "./types";
 import "./DrawnixBoardCore.css";
 
@@ -174,9 +182,16 @@ export default function DrawnixBoardCore({
 }: Props) {
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const boardRef = React.useRef<PlaitBoard | null>(null);
+  const materialLibraryRef = React.useRef<LakexMaterialLibraryHandle | null>(null);
   const boardInteractionActiveRef = React.useRef(false);
   const [board, setBoard] = React.useState<PlaitBoard | null>(null);
   const [shapeCatalogOpen, setShapeCatalogOpen] = React.useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = React.useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [contextMenuHasSelection, setContextMenuHasSelection] =
+    React.useState(false);
   const normalizeTextScheduledRef = React.useRef(false);
   const exportSnapshotTimerRef = React.useRef<number | null>(null);
   const exportSnapshotVersionRef = React.useRef(0);
@@ -462,6 +477,91 @@ export default function DrawnixBoardCore({
     );
   };
 
+  const isBoardCanvasTarget = (target: EventTarget | null) => {
+    const element = target instanceof Element
+      ? target
+      : target instanceof Node
+        ? target.parentElement
+        : null;
+    if (!element?.closest(".plait-board-container")) return false;
+    return !element.closest(
+      ".draw-toolbar, .plait-board-attached, [role=dialog], [data-lakex-shape-catalog]",
+    );
+  };
+
+  const getBoardPointAt = (
+    clientX: number,
+    clientY: number,
+  ): [number, number] | null => {
+    const targetBoard = boardRef.current;
+    if (!targetBoard) return null;
+    const container = PlaitBoard.getBoardContainer(targetBoard).getBoundingClientRect();
+    const origin = getViewportOrigination(targetBoard) ?? [0, 0];
+    const zoom = targetBoard.viewport.zoom || 1;
+    return [
+      origin[0] + (clientX - container.left) / zoom,
+      origin[1] + (clientY - container.top) / zoom,
+    ];
+  };
+
+  const getContextMenuBoardPoint = () =>
+    contextMenuPosition
+      ? getBoardPointAt(contextMenuPosition.x, contextMenuPosition.y)
+      : null;
+
+  const insertContextText = () => {
+    const targetBoard = boardRef.current;
+    const point = getContextMenuBoardPoint();
+    if (!targetBoard || !point) return;
+    DrawTransforms.insertText(targetBoard, point, locale === "zh-CN" ? "文本" : "Text");
+  };
+
+  const insertContextShape = () => {
+    const targetBoard = boardRef.current;
+    const point = getContextMenuBoardPoint();
+    if (!targetBoard || !point) return;
+    DrawTransforms.insertGeometry(
+      targetBoard,
+      [point, [point[0] + 160, point[1] + 88]],
+      BasicShapes.roundRectangle,
+    );
+  };
+
+  const insertContextLine = () => {
+    const targetBoard = boardRef.current;
+    const point = getContextMenuBoardPoint();
+    if (!targetBoard || !point) return;
+    insertArrow(targetBoard, point, [point[0] + 180, point[1]]);
+  };
+
+  const setContextActualSize = () => {
+    const targetBoard = boardRef.current;
+    if (!targetBoard) return;
+    BoardTransforms.updateViewport(
+      targetBoard,
+      getViewportOrigination(targetBoard) ?? [0, 0],
+      1,
+    );
+  };
+
+  const preserveContextSelection = (clientX: number, clientY: number) => {
+    const targetBoard = boardRef.current;
+    const point = getBoardPointAt(clientX, clientY);
+    if (!targetBoard || !point) return false;
+    // A right click on an unselected shape should operate on that shape.
+    // More importantly, do this before Drawnix's native mouse handlers can
+    // clear the current selection as focus leaves the canvas.
+    if (!getSelectedElements(targetBoard).length) {
+      const hitElement = getHitElementByPoint(targetBoard, point);
+      if (hitElement) {
+        clearSelectedElement(targetBoard);
+        addSelectedElement(targetBoard, hitElement);
+      }
+    }
+    return materialLibraryRef.current?.captureSelection() ??
+      getSelectedElements(targetBoard).length > 0;
+  };
+
   return (
     <div
       ref={rootRef}
@@ -470,6 +570,12 @@ export default function DrawnixBoardCore({
       }`}
       data-theme={isDark ? "dark" : "light"}
       onPointerDownCapture={(event) => {
+        if (event.button === 2 && isBoardCanvasTarget(event.target)) {
+          event.preventDefault();
+          event.stopPropagation();
+          preserveContextSelection(event.clientX, event.clientY);
+          return;
+        }
         if (isShapeTrigger(event.target)) {
           event.preventDefault();
           event.stopPropagation();
@@ -494,6 +600,17 @@ export default function DrawnixBoardCore({
           event.preventDefault();
           event.stopPropagation();
         }
+      }}
+      onContextMenuCapture={(event) => {
+        if (!isBoardCanvasTarget(event.target)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        boardInteractionActiveRef.current = true;
+        setContextMenuHasSelection(
+          preserveContextSelection(event.clientX, event.clientY),
+        );
+        setShapeCatalogOpen(false);
+        setContextMenuPosition({ x: event.clientX, y: event.clientY });
       }}
       onKeyDown={(event) => {
         const target = event.target as Element | null;
@@ -582,12 +699,43 @@ export default function DrawnixBoardCore({
             open={shapeCatalogOpen}
             onClose={() => setShapeCatalogOpen(false)}
           />
+          <LakexMaterialLibrary
+            ref={materialLibraryRef}
+            board={board}
+            locale={locale}
+            dark={isDark}
+            toolbarHost={rootRef.current?.querySelector(
+              ".draw-toolbar .stack_horizontal",
+            ) ?? null}
+            onOpen={() => setShapeCatalogOpen(false)}
+          />
           <LakexExportMenu
             board={board}
             locale={locale}
             toolbarHost={rootRef.current?.querySelector(
               ".draw-toolbar .stack_horizontal",
             ) ?? null}
+          />
+          <LakexBoardContextMenu
+            board={board}
+            locale={locale}
+            dark={isDark}
+            hasContextSelection={contextMenuHasSelection}
+            position={contextMenuPosition}
+            onClose={() => {
+              setContextMenuPosition(null);
+              setContextMenuHasSelection(false);
+            }}
+            onAddText={insertContextText}
+            onAddShape={insertContextShape}
+            onAddLine={insertContextLine}
+            onFitToCanvas={() => {
+              if (boardRef.current) BoardTransforms.fitViewport(boardRef.current);
+            }}
+            onActualSize={setContextActualSize}
+            onAddToMaterialLibrary={() =>
+              materialLibraryRef.current?.addSelectionToLibrary() ?? false
+            }
           />
         </>
       )}

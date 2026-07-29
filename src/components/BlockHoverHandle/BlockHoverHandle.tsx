@@ -301,6 +301,16 @@ export const BlockHoverHandle = forwardRef<HTMLDivElement, BlockHoverHandleProps
       const target = e.target as Node;
       if (!container.contains(target)) return;
 
+      // Drawnix owns its canvas context menu. Let the card render its own
+      // board-level actions instead of resolving the enclosing `ne-card` and
+      // opening the document block menu.
+      if (
+        target instanceof Element &&
+        target.closest(".lakex-drawnix-core")
+      ) {
+        return;
+      }
+
       const blockEl =
         resolveBlockNode(target, e.clientX, e.clientY) ||
         hoverStateRef.current.blockElement;
