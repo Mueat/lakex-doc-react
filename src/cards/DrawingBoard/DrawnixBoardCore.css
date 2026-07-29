@@ -350,7 +350,6 @@ ne-card-root:has(.lakex-material-library__backdrop) {
   padding: 8px 32px;
   overflow-x: auto;
   background: var(--island-bg-color, #fff);
-  box-shadow: 0 1px 0 var(--color-gray-20, #e8eaed);
   scrollbar-width: none;
 }
 
@@ -384,7 +383,7 @@ ne-card-root:has(.lakex-material-library__backdrop) {
   display: grid;
   min-height: 0;
   flex: 1 1 auto;
-  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
   align-content: start;
   gap: 24px;
   padding: 10px 32px 32px;
@@ -468,8 +467,8 @@ ne-card-root:has(.lakex-material-library__backdrop) {
   height: 54px;
   align-items: center;
   padding: 0 18px;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 500;
 }
 
 .lakex-material-card__details {
