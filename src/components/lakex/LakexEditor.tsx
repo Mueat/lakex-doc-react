@@ -156,12 +156,6 @@ export function LakexEditor(props: LakexEditorProps) {
     // Lakex plugin option. Keep it on the editor instance so every drawing
     // card can use the correct service in multi-editor pages.
     editor.__lakexDrawingBoardAI = drawingBoardAI;
-    
-    const parsedCardSelectConfig = editor.plugins?.slash?.option?.getParsedConfig?.(
-      'general',
-      'cardSelect',
-    );
-    setCardSelectConfig(parsedCardSelectConfig || null);
 
     // 设置内容
     if (content) {
