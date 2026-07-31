@@ -99,6 +99,25 @@
   z-index: 130 !important;
 }
 
+/* Drawnix already owns link creation, hover preview, editing and removal.
+   Its floating link island has no explicit stacking level, so Lakex's board
+   host/active layers can otherwise paint over it. */
+.lakex-drawnix-core .link-popup {
+  z-index: 150 !important;
+  pointer-events: auto;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .link-popup {
+  border-color: var(--island-border-color, #3d3d3d);
+  background: var(--island-bg-color, #242424);
+  color: var(--color-gray-90, #f5f5f5);
+}
+
+.lakex-drawnix-core[data-theme="dark"] .link-popup__input {
+  background: transparent;
+  color: var(--color-gray-90, #f5f5f5);
+}
+
 /* Color pickers, arrow selectors and the more-actions menu are rendered as
    sibling floating dialogs by the native toolbar. They must share the popup
    layer; otherwise the board SVG (z-index: 1) paints over them. */

@@ -1,5 +1,5 @@
 import type { PlaitElement, Point } from "@plait/core";
-import { buildText } from "@plait/common";
+import { buildText, StrokeStyle } from "@plait/common";
 import {
   ArrowLineMarkerType,
   ArrowLineShape,
@@ -36,6 +36,7 @@ interface AIBoardNodeStyle {
   fill?: string;
   strokeColor?: string;
   strokeWidth?: number;
+  strokeStyle?: StrokeStyle;
   fontSize?: number;
   textColor?: string;
 }
@@ -55,6 +56,7 @@ interface AIBoardEdgeStyle {
   lineType?: "straight" | "elbow" | "curve";
   strokeColor?: string;
   strokeWidth?: number;
+  strokeStyle?: StrokeStyle;
   endMarker?: "arrow" | "none";
 }
 
@@ -150,6 +152,11 @@ const readAnchor = (value: unknown): Anchor | undefined =>
     ? value
     : undefined;
 
+const readStrokeStyle = (value: unknown): StrokeStyle =>
+  value === StrokeStyle.dashed || value === StrokeStyle.dotted
+    ? value
+    : StrokeStyle.solid;
+
 const parseResponseValue = (response: unknown): unknown => {
   if (typeof response !== "string") return response;
   const trimmed = response.trim();
@@ -202,6 +209,7 @@ export function parseAIBoardDocument(response: unknown): AIBoardDocument {
         fill: readColor(style.fill, "#E8F1FF", true),
         strokeColor: readColor(style.strokeColor, "#5B8FF9"),
         strokeWidth: readNumber(style.strokeWidth, 1.5, 0, 8),
+        strokeStyle: readStrokeStyle(style.strokeStyle),
         fontSize: readNumber(style.fontSize, 14, 10, 72),
         textColor: readColor(style.textColor, "#273142"),
       },
@@ -239,6 +247,7 @@ export function parseAIBoardDocument(response: unknown): AIBoardDocument {
         lineType,
         strokeColor: readColor(style.strokeColor, "#697586"),
         strokeWidth: readNumber(style.strokeWidth, 1.5, 0.5, 8),
+        strokeStyle: readStrokeStyle(style.strokeStyle),
         endMarker: style.endMarker === "none" ? "none" : "arrow",
       },
     };
@@ -320,6 +329,7 @@ export function convertAIBoardDocument(
         color: node.style.textColor,
       },
     );
+    element.strokeStyle = node.style.strokeStyle;
     elements.push(element);
     nativeNodes.set(node.id, { source: node, element });
   });
@@ -364,6 +374,7 @@ export function convertAIBoardDocument(
         strokeWidth: edge.style.strokeWidth,
       },
     );
+    line.strokeStyle = edge.style.strokeStyle;
     elements.push(line);
   });
 

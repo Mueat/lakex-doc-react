@@ -22,6 +22,7 @@ import {
   type Viewport,
 } from "@plait/core";
 import {
+  Alignment,
   BoardCreationMode,
   buildText,
   getTextEditorsByElement,
@@ -33,10 +34,10 @@ import {
   ArrowLineShape,
   BasicShapes,
   createArrowLineElement,
-  createTextElement,
+  createDefaultGeometry,
   DrawTransforms,
   FlowchartSymbols,
-  getTextShapeProperty,
+  type PlaitShapeElement,
   UMLSymbols,
 } from "@plait/draw";
 import {
@@ -66,12 +67,69 @@ import "./DrawnixBoardCore.css";
 type Locale = "zh-CN" | "en-US";
 type BoardTheme = "light" | "dark" | "system";
 
-const insertArrow = (board: PlaitBoard, start: [number, number], end: [number, number]) => {
+const insertArrow = (
+  board: PlaitBoard,
+  start: [number, number],
+  end: [number, number],
+) => {
   const arrow = createArrowLineElement(
     ArrowLineShape.straight,
     [start, end],
     { marker: ArrowLineMarkerType.none },
     { marker: ArrowLineMarkerType.arrow },
+  );
+  Transforms.insertNode(board, arrow, [board.children.length]);
+};
+
+type PresetAnchor = "top" | "right" | "bottom" | "left";
+
+const PRESET_CONNECTIONS: Record<PresetAnchor, [number, number]> = {
+  top: [0.5, 0],
+  right: [1, 0.5],
+  bottom: [0.5, 1],
+  left: [0, 0.5],
+};
+
+const getPresetAnchorPoint = (
+  element: PlaitShapeElement,
+  anchor: PresetAnchor,
+): [number, number] => {
+  const [start, end] = element.points;
+  switch (anchor) {
+    case "top":
+      return [(start[0] + end[0]) / 2, start[1]];
+    case "right":
+      return [end[0], (start[1] + end[1]) / 2];
+    case "bottom":
+      return [(start[0] + end[0]) / 2, end[1]];
+    case "left":
+      return [start[0], (start[1] + end[1]) / 2];
+  }
+};
+
+const insertBoundArrow = (
+  board: PlaitBoard,
+  source: PlaitShapeElement,
+  target: PlaitShapeElement,
+  sourceAnchor: PresetAnchor,
+  targetAnchor: PresetAnchor,
+) => {
+  const arrow = createArrowLineElement(
+    ArrowLineShape.straight,
+    [
+      getPresetAnchorPoint(source, sourceAnchor),
+      getPresetAnchorPoint(target, targetAnchor),
+    ],
+    {
+      boundId: source.id,
+      connection: PRESET_CONNECTIONS[sourceAnchor],
+      marker: ArrowLineMarkerType.none,
+    },
+    {
+      boundId: target.id,
+      connection: PRESET_CONNECTIONS[targetAnchor],
+      marker: ArrowLineMarkerType.arrow,
+    },
   );
   Transforms.insertNode(board, arrow, [board.children.length]);
 };
@@ -86,21 +144,34 @@ const scalePresetPoint = (
   origin[1] + (point[1] - origin[1]) * PRESET_SCALE,
 ];
 
-const PRESET_LABEL_FONT_SIZE = "12";
-const PRESET_LABEL_MIN_WIDTH = 56;
-const PRESET_LABEL_MIN_HEIGHT = 20;
-
-const insertLabel = (board: PlaitBoard, point: [number, number], text: string) => {
-  const label = buildText(text, undefined, { "font-size": PRESET_LABEL_FONT_SIZE });
-  const textSize = getTextShapeProperty(board, label, PRESET_LABEL_FONT_SIZE);
-  const width = Math.max(textSize.width, PRESET_LABEL_MIN_WIDTH);
-  const height = Math.max(textSize.height, PRESET_LABEL_MIN_HEIGHT);
-  const element = createTextElement(
+const insertPresetGeometry = (
+  board: PlaitBoard,
+  points: [[number, number], [number, number]],
+  shape: FlowchartSymbols | UMLSymbols,
+  text: string,
+) => {
+  const element = createDefaultGeometry(
     board,
-    [point, [point[0] + width, point[1] + height]],
-    label,
-  );
-  Transforms.insertNode(board, element, [board.children.length]);
+    points,
+    shape,
+  ) as PlaitShapeElement;
+  const label = buildText(text, Alignment.center, { "font-size": "12" });
+  let labeledElement: PlaitShapeElement;
+  if ("cells" in element && Array.isArray(element.cells) && element.cells[0]) {
+    const cells = element.cells.map((cell, index) =>
+      index === 0 ? { ...cell, text: label } : cell,
+    );
+    labeledElement = { ...element, cells } as PlaitShapeElement;
+  } else if ("texts" in element && Array.isArray(element.texts)) {
+    const texts = element.texts.map((item, index) =>
+      index === 0 ? { ...item, text: label } : item,
+    );
+    labeledElement = { ...element, texts } as PlaitShapeElement;
+  } else {
+    labeledElement = { ...element, text: label } as PlaitShapeElement;
+  }
+  Transforms.insertNode(board, labeledElement, [board.children.length]);
+  return labeledElement;
 };
 
 const insertPresetScene = (
@@ -111,30 +182,58 @@ const insertPresetScene = (
   const zh = locale === "zh-CN";
   if (preset === "flowchart") {
     const point = (value: [number, number]) => scalePresetPoint(value, [540, 370]);
-    DrawTransforms.insertGeometry(board, [point([460, 120]), point([620, 180])], FlowchartSymbols.terminal);
-    DrawTransforms.insertGeometry(board, [point([460, 250]), point([620, 320])], FlowchartSymbols.process);
-    DrawTransforms.insertGeometry(board, [point([460, 390]), point([620, 490])], FlowchartSymbols.decision);
-    DrawTransforms.insertGeometry(board, [point([460, 560]), point([620, 620])], FlowchartSymbols.terminal);
-    insertLabel(board, point([515, 142]), zh ? "开始" : "Start");
-    insertLabel(board, point([500, 272]), zh ? "处理" : "Process");
-    insertLabel(board, point([515, 425]), zh ? "判断" : "Decision");
-    insertLabel(board, point([515, 580]), zh ? "结束" : "End");
-    insertArrow(board, point([540, 180]), point([540, 250]));
-    insertArrow(board, point([540, 320]), point([540, 390]));
-    insertArrow(board, point([540, 490]), point([540, 560]));
+    const start = insertPresetGeometry(
+      board,
+      [point([460, 120]), point([620, 180])],
+      FlowchartSymbols.terminal,
+      zh ? "开始" : "Start",
+    );
+    const process = insertPresetGeometry(
+      board,
+      [point([460, 250]), point([620, 320])],
+      FlowchartSymbols.process,
+      zh ? "处理" : "Process",
+    );
+    const decision = insertPresetGeometry(
+      board,
+      [point([460, 390]), point([620, 490])],
+      FlowchartSymbols.decision,
+      zh ? "判断" : "Decision",
+    );
+    const end = insertPresetGeometry(
+      board,
+      [point([460, 560]), point([620, 620])],
+      FlowchartSymbols.terminal,
+      zh ? "结束" : "End",
+    );
+    insertBoundArrow(board, start, process, "bottom", "top");
+    insertBoundArrow(board, process, decision, "bottom", "top");
+    insertBoundArrow(board, decision, end, "bottom", "top");
     return;
   }
 
   if (preset === "uml") {
     const point = (value: [number, number]) => scalePresetPoint(value, [625, 315]);
-    DrawTransforms.insertGeometry(board, [point([230, 245]), point([350, 365])], UMLSymbols.actor);
-    DrawTransforms.insertGeometry(board, [point([470, 260]), point([670, 350])], UMLSymbols.useCase);
-    DrawTransforms.insertGeometry(board, [point([790, 205]), point([1020, 405])], UMLSymbols.class);
-    insertLabel(board, point([260, 385]), zh ? "用户" : "User");
-    insertLabel(board, point([525, 292]), zh ? "提交申请" : "Submit request");
-    insertLabel(board, point([850, 425]), zh ? "申请服务" : "Request service");
-    insertArrow(board, point([350, 305]), point([470, 305]));
-    insertArrow(board, point([670, 305]), point([790, 305]));
+    const actor = insertPresetGeometry(
+      board,
+      [point([230, 245]), point([350, 365])],
+      UMLSymbols.actor,
+      zh ? "用户" : "User",
+    );
+    const useCase = insertPresetGeometry(
+      board,
+      [point([470, 260]), point([670, 350])],
+      UMLSymbols.useCase,
+      zh ? "提交申请" : "Submit request",
+    );
+    const service = insertPresetGeometry(
+      board,
+      [point([790, 205]), point([1020, 405])],
+      UMLSymbols.class,
+      zh ? "申请服务" : "Request service",
+    );
+    insertBoundArrow(board, actor, useCase, "right", "left");
+    insertBoundArrow(board, useCase, service, "right", "left");
     return;
   }
 
@@ -204,6 +303,14 @@ export default function DrawnixBoardCore({
   const exportSnapshotVersionRef = React.useRef(0);
   const presetFrameRef = React.useRef<number | null>(null);
   const presetFitFrameRef = React.useRef<number | null>(null);
+  const textEnterViewportRef = React.useRef<{
+    board: PlaitBoard;
+    origination: [number, number];
+    zoom: number;
+    viewportContainer: HTMLElement | null;
+    scrollLeft: number;
+    scrollTop: number;
+  } | null>(null);
   const systemDark = useSystemDark(theme === "system");
   const isDark = theme === "dark" || (theme === "system" && systemDark);
   const themeColorMode = isDark ? ThemeColorMode.dark : ThemeColorMode.default;
@@ -305,13 +412,19 @@ export default function DrawnixBoardCore({
   const incomingSceneSignature = JSON.stringify(incomingScene);
   const [scene, setScene] = React.useState<PlaitElement[]>(incomingScene);
   const sceneSignatureRef = React.useRef(incomingSceneSignature);
+  const emittedSceneSignaturesRef = React.useRef<Set<string>>(new Set());
   const viewport = value?.plaitViewport as Viewport | undefined;
 
   // Lakex persists each board operation back into the card. Keep the board's
-  // own array reference for that round trip: feeding a cloned-but-identical
-  // value back to Drawnix makes its wrapper fit the viewport again.
+  // own array reference for that round trip. Slate text editing may emit
+  // several values in one keypress and the host can return those snapshots
+  // out of order; feeding any of those internal clones back to Drawnix makes
+  // its wrapper fit the viewport and visibly shifts the whole diagram.
   React.useEffect(() => {
     if (incomingSceneSignature === sceneSignatureRef.current) return;
+    if (emittedSceneSignaturesRef.current.delete(incomingSceneSignature)) {
+      return;
+    }
     sceneSignatureRef.current = incomingSceneSignature;
     setScene(incomingScene);
   }, [incomingScene, incomingSceneSignature]);
@@ -649,11 +762,36 @@ export default function DrawnixBoardCore({
         setShapeCatalogOpen(false);
         setContextMenuPosition({ x: event.clientX, y: event.clientY });
       }}
+      onKeyDownCapture={(event) => {
+        if (event.key !== "Enter") return;
+        const target = event.target as Element | null;
+        if (!target?.closest(".slate-editable-container")) return;
+        const targetBoard = boardRef.current;
+        const origination =
+          targetBoard?.viewport.origination ??
+          (targetBoard ? getViewportOrigination(targetBoard) : null);
+        if (targetBoard && origination) {
+          const boardContainer = PlaitBoard.getBoardContainer(targetBoard);
+          const viewportContainer = boardContainer.matches(".viewport-container")
+            ? boardContainer
+            : boardContainer.querySelector<HTMLElement>(".viewport-container");
+          textEnterViewportRef.current = {
+            board: targetBoard,
+            origination: [...origination] as [number, number],
+            zoom: targetBoard.viewport.zoom,
+            viewportContainer,
+            scrollLeft: viewportContainer?.scrollLeft ?? 0,
+            scrollTop: viewportContainer?.scrollTop ?? 0,
+          };
+        }
+      }}
       onKeyDown={(event) => {
         const target = event.target as Element | null;
-        const isTextEditingTarget = !!target?.closest(
-          '[contenteditable="true"], input, textarea, select',
+        const editingTarget = target?.closest(
+          '.slate-editable-container, input, textarea, select',
         );
+        const isTextEditingTarget =
+          !!editingTarget && !!rootRef.current?.contains(editingTarget);
         if (
           (event.key === "Delete" || event.key === "Backspace") &&
           isTextEditingTarget
@@ -664,9 +802,55 @@ export default function DrawnixBoardCore({
           return;
         }
         if (event.key === "Enter" && isTextEditingTarget) {
-          // Let Slate process Enter at its target, but keep the event from
-          // reaching Drawnix's document-level board hotkey afterwards.
+          // The editable target has already processed the key before this
+          // ancestor handler runs. Keep the same native event away from both
+          // Drawnix's global hotkeys and Lakex's outer editor; otherwise the
+          // host may insert a block and shift the entire drawing card.
           event.stopPropagation();
+          event.nativeEvent.stopImmediatePropagation();
+          const viewportBeforeEnter = textEnterViewportRef.current;
+          textEnterViewportRef.current = null;
+          if (
+            viewportBeforeEnter &&
+            typeof window !== "undefined"
+          ) {
+            const restoreViewport = () => {
+              if (boardRef.current !== viewportBeforeEnter.board) return;
+              BoardTransforms.updateViewport(
+                viewportBeforeEnter.board,
+                viewportBeforeEnter.origination,
+                viewportBeforeEnter.zoom,
+              );
+              if (viewportBeforeEnter.viewportContainer) {
+                viewportBeforeEnter.viewportContainer.scrollLeft =
+                  viewportBeforeEnter.scrollLeft;
+                viewportBeforeEnter.viewportContainer.scrollTop =
+                  viewportBeforeEnter.scrollTop;
+              }
+            };
+            // Drawnix measures the changed foreignObject in a passive update.
+            // Restore after that measurement so Enter changes only the text
+            // and never recenters every existing element.
+            window.requestAnimationFrame(() => {
+              window.requestAnimationFrame(() => {
+                restoreViewport();
+              });
+            });
+            // Text foreignObjects can trigger one more ResizeObserver pass
+            // after React's passive effects. Reapply once after that pass.
+            window.setTimeout(restoreViewport, 160);
+          }
+        }
+      }}
+      onKeyUp={(event) => {
+        if (event.key !== "Enter") return;
+        const target = event.target as Element | null;
+        const editingTarget = target?.closest(
+          '.slate-editable-container, input, textarea, select',
+        );
+        if (editingTarget && rootRef.current?.contains(editingTarget)) {
+          event.stopPropagation();
+          event.nativeEvent.stopImmediatePropagation();
         }
       }}
     >
@@ -716,7 +900,14 @@ export default function DrawnixBoardCore({
           if (boardRef.current) scheduleTextAutoSize(boardRef.current);
         }}
         onValueChange={(plaitValue) => {
-          sceneSignatureRef.current = JSON.stringify(plaitValue);
+          const signature = JSON.stringify(plaitValue);
+          sceneSignatureRef.current = signature;
+          const emitted = emittedSceneSignaturesRef.current;
+          emitted.add(signature);
+          if (emitted.size > 50) {
+            const oldest = emitted.values().next().value;
+            if (oldest) emitted.delete(oldest);
+          }
           setScene(plaitValue);
           if (boardRef.current) {
             scheduleTextAutoSize(boardRef.current);

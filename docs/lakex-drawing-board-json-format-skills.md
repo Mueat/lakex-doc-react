@@ -14,11 +14,11 @@
 
 节点结构：
 
-`{"id":"唯一ID","shape":"图形","x":80,"y":80,"width":180,"height":64,"text":"文字","style":{"fill":"#E8F1FF","strokeColor":"#5B8FF9","strokeWidth":1.5,"fontSize":14,"textColor":"#273142"}}`
+`{"id":"唯一ID","shape":"图形","x":80,"y":80,"width":180,"height":64,"text":"文字","style":{"fill":"#E8F1FF","strokeColor":"#5B8FF9","strokeWidth":1.5,"strokeStyle":"solid","fontSize":14,"textColor":"#273142"}}`
 
 连线结构：
 
-`{"id":"唯一ID","source":"节点ID","target":"节点ID","sourceAnchor":"bottom","targetAnchor":"top","label":"可选文字","style":{"lineType":"elbow","strokeColor":"#697586","strokeWidth":1.5,"endMarker":"arrow"}}`
+`{"id":"唯一ID","source":"节点ID","target":"节点ID","sourceAnchor":"bottom","targetAnchor":"top","label":"可选文字","style":{"lineType":"elbow","strokeColor":"#697586","strokeWidth":1.5,"strokeStyle":"solid","endMarker":"arrow"}}`
 
 允许的 `shape`：
 
@@ -34,9 +34,11 @@
 - 颜色只能是 `#RRGGBB`，填充可为 `transparent`。
 - 锚点只能是 `top,right,bottom,left`。
 - 线型只能是 `straight,elbow,curve`，箭头只能是 `arrow,none`。
+- 描边样式 `strokeStyle` 只能是 `solid,dashed,dotted`，默认 `solid`。
 - 每条连线必须引用已存在且不同的 source/target 节点。
 - 图形不能重叠；同层节点对齐，间距至少 32；流程图优先从上到下。
 - 普通节点推荐 180×64，判断节点推荐 180×110。
+- 思维导图使用 `nodes + edges` 表达层级：中心主题使用 `roundRectangle`，分支使用 `rectangle`，连线使用 `curve`、`endMarker:none`。
 
 <!-- AI_RUNTIME_SPEC_END -->
 
@@ -85,6 +87,7 @@
     "fill": "#E8F1FF",
     "strokeColor": "#5B8FF9",
     "strokeWidth": 1.5,
+    "strokeStyle": "solid",
     "fontSize": 14,
     "textColor": "#273142"
   }
@@ -163,6 +166,7 @@ UML / Smart：
 | `fill`        | string | `#RRGGBB`；透明使用 `transparent` |
 | `strokeColor` | string | `#RRGGBB`                         |
 | `strokeWidth` | number | `0..8`                            |
+| `strokeStyle` | string | `solid`、`dashed`、`dotted`       |
 | `fontSize`    | number | `10..72`                          |
 | `textColor`   | string | `#RRGGBB`                         |
 
@@ -192,6 +196,7 @@ UML / Smart：
     "lineType": "elbow",
     "strokeColor": "#697586",
     "strokeWidth": 1.5,
+    "strokeStyle": "solid",
     "endMarker": "arrow"
   }
 }
@@ -216,6 +221,7 @@ UML / Smart：
 | `lineType`    | string | `straight`、`elbow`、`curve` |
 | `strokeColor` | string | `#RRGGBB`                    |
 | `strokeWidth` | number | `0.5..8`                     |
+| `strokeStyle` | string | `solid`、`dashed`、`dotted`  |
 | `endMarker`   | string | `arrow` 或 `none`            |
 
 默认使用 `elbow` 和 `arrow`。流程方向应通过锚点表达，例如纵向流程使用 `bottom -> top`，横向流程使用 `right -> left`。
@@ -231,7 +237,87 @@ UML / Smart：
 - 分支汇聚前后留出额外空间，避免连线穿过节点。
 - 连线只连接语义相关节点，不要用连线绘制装饰边框。
 
-## 6. 完整示例
+### 5.1 思维导图
+
+当前 AI 中间格式统一使用 `nodes + edges`，思维导图不新增私有根节点类型：
+
+- 中心主题使用 `roundRectangle`，尺寸建议 `180×72`。
+- 一级、二级分支使用 `rectangle` 或 `roundRectangle`，尺寸建议 `140..180 × 48..64`。
+- 中心主题放在画布中心；一级分支在左右两侧分布，子分支沿父分支方向继续展开。
+- 每个非根节点只保留一条来自父节点的连线，不要形成环。
+- 思维导图连线推荐 `lineType:"curve"`、`endMarker:"none"`；主分支可使用更粗的 `strokeWidth`。
+- 同一分支的节点与连线使用相同的 `strokeColor`，不同一级分支可以使用不同色系。
+- 横向连接使用 `right -> left` 或 `left -> right`，不要让连线穿过其他节点。
+
+示例：
+
+```json
+{
+  "version": 1,
+  "title": "产品规划",
+  "nodes": [
+    {
+      "id": "root",
+      "shape": "roundRectangle",
+      "x": 500,
+      "y": 320,
+      "width": 180,
+      "height": 72,
+      "text": "产品规划"
+    },
+    {
+      "id": "requirements",
+      "shape": "roundRectangle",
+      "x": 220,
+      "y": 210,
+      "width": 160,
+      "height": 56,
+      "text": "需求分析"
+    },
+    {
+      "id": "delivery",
+      "shape": "roundRectangle",
+      "x": 800,
+      "y": 430,
+      "width": 160,
+      "height": 56,
+      "text": "发布计划"
+    }
+  ],
+  "edges": [
+    {
+      "id": "root_requirements",
+      "source": "root",
+      "target": "requirements",
+      "sourceAnchor": "left",
+      "targetAnchor": "right",
+      "style": {
+        "lineType": "curve",
+        "strokeColor": "#5B8FF9",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "endMarker": "none"
+      }
+    },
+    {
+      "id": "root_delivery",
+      "source": "root",
+      "target": "delivery",
+      "sourceAnchor": "right",
+      "targetAnchor": "left",
+      "style": {
+        "lineType": "curve",
+        "strokeColor": "#5BB98C",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "endMarker": "none"
+      }
+    }
+  ]
+}
+```
+
+## 6. 完整流程图示例
 
 用户描述：“生成一个用户提交工单的流程图，审核通过后进入处理中，不通过则退回修改，最后完成。”
 
