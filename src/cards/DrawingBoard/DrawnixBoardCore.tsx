@@ -14,6 +14,7 @@ import {
   getViewportOrigination,
   getSelectedElements,
   PlaitBoard,
+  PlaitHistoryBoard,
   ThemeColorMode,
   Transforms,
   toImage,
@@ -55,6 +56,10 @@ import LakexMaterialLibrary, {
   type LakexMaterialLibraryHandle,
 } from "./LakexMaterialLibrary";
 import LakexBoardContextMenu from "./LakexBoardContextMenu";
+import LakexAIBoardAssistant, {
+  type AIBoardApplyMode,
+} from "./LakexAIBoardAssistant";
+import type { DrawingBoardAIConfig } from "../../components/lakex/types";
 import type { DrawingBoardPreset, IDrawingBoardCardValue } from "./types";
 import "./DrawnixBoardCore.css";
 
@@ -151,6 +156,7 @@ interface Props {
   readOnly?: boolean;
   locale: Locale;
   theme: BoardTheme;
+  ai?: DrawingBoardAIConfig;
   onChange?: (value: Partial<IDrawingBoardCardValue>) => void;
 }
 
@@ -178,6 +184,7 @@ export default function DrawnixBoardCore({
   readOnly,
   locale,
   theme,
+  ai,
   onChange,
 }: Props) {
   const rootRef = React.useRef<HTMLDivElement | null>(null);
@@ -562,6 +569,36 @@ export default function DrawnixBoardCore({
       getSelectedElements(targetBoard).length > 0;
   };
 
+  const applyAIGeneratedElements = React.useCallback(
+    (elements: PlaitElement[], mode: AIBoardApplyMode) => {
+      const targetBoard = boardRef.current;
+      if (!targetBoard || !elements.length) return;
+      clearSelectedElement(targetBoard);
+      PlaitHistoryBoard.withNewBatch(targetBoard, () => {
+        if (mode === "replace") {
+          for (let index = targetBoard.children.length - 1; index >= 0; index -= 1) {
+            Transforms.removeNode(targetBoard, [index]);
+          }
+        }
+        elements.forEach((element) => {
+          Transforms.insertNode(targetBoard, element, [
+            targetBoard.children.length,
+          ]);
+        });
+      });
+      // Geometry hosts are created during the next React/Plait update. Fit on
+      // the following frame so the generated diagram is centered and visible.
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (boardRef.current === targetBoard) {
+            BoardTransforms.fitViewport(targetBoard);
+          }
+        });
+      });
+    },
+    [],
+  );
+
   return (
     <div
       ref={rootRef}
@@ -708,6 +745,17 @@ export default function DrawnixBoardCore({
               ".draw-toolbar .stack_horizontal",
             ) ?? null}
             onOpen={() => setShapeCatalogOpen(false)}
+          />
+          <LakexAIBoardAssistant
+            ai={ai}
+            locale={locale}
+            dark={isDark}
+            toolbarHost={rootRef.current?.querySelector(
+              ".draw-toolbar .stack_horizontal",
+            ) ?? null}
+            overlayHost={rootRef.current}
+            onOpen={() => setShapeCatalogOpen(false)}
+            onApply={applyAIGeneratedElements}
           />
           <LakexExportMenu
             board={board}

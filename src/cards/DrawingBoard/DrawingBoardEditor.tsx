@@ -4,7 +4,10 @@ import findCardId from '../utils';
 import Doc from '../../components/lakex/lakex';
 import type { ICardProps } from '../types';
 import DrawnixBoardCore from './DrawnixBoardCore';
-import type { IDrawingBoardCardValue } from './types';
+import type {
+  IDrawingBoardCardValue,
+  LakexDrawingBoardEditorHost,
+} from './types';
 
 class DrawingBoardEditor extends React.Component<
   ICardProps<IDrawingBoardCardValue>
@@ -27,6 +30,8 @@ class DrawingBoardEditor extends React.Component<
     // current project value on every render instead of persisting a local mode.
     const hostTheme = editor?.theme?.currentThemeSchema?.colorScheme === 'dark' ? 'dark' : 'light';
     const theme = hostTheme;
+    const ai = (editor as LakexDrawingBoardEditorHost | undefined)
+      ?.__lakexDrawingBoardAI;
 
     return (
       <CardResizer
@@ -54,6 +59,7 @@ class DrawingBoardEditor extends React.Component<
           value={cardValue}
           locale={locale}
           theme={theme}
+          ai={ai}
           onChange={this.handleChange}
         />
       </CardResizer>

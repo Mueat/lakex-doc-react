@@ -104,75 +104,8 @@ const choose = (
 
 export const materialTemplates: MaterialTemplate[] = [
   {
-    id: "approval-flow",
-    categories: ["hot", "teamwork"],
-    zh: "审批流程图",
-    en: "Approval flow",
-    sourceId: 18065029,
-    docletId: 48499911,
-    descriptionZh: "以不同类型的框代表不同种类的步骤，每两个步骤之间则以箭头连接。",
-    descriptionEn: "Use different boxes for different steps and connect each step with arrows.",
-    usageCount: 96553,
-    cover: "https://mdn.alipayobjects.com/huamei_0prmtq/afts/img/A*Kub1RJ_eXnsAAAAAAAAAAAAADvuFAQ/original",
-    build: (locale) => {
-      const start = choose(locale, "开始", "Start");
-      const submit = choose(locale, "提交申请", "Submit");
-      const approve = choose(locale, "审批通过？", "Approved?");
-      const execute = choose(locale, "执行方案", "Execute");
-      const revise = choose(locale, "修改后重提", "Revise");
-      const end = choose(locale, "结束", "End");
-      return [
-        box(FlowchartSymbols.terminal, -60, -210, 120, 46, start, "blue"),
-        box(FlowchartSymbols.process, -70, -125, 140, 54, submit, "indigo"),
-        box(FlowchartSymbols.decision, -72, -35, 144, 84, approve, "yellow"),
-        box(FlowchartSymbols.process, -70, 95, 140, 54, execute, "green"),
-        box(FlowchartSymbols.process, 145, -20, 145, 54, revise, "orange"),
-        box(FlowchartSymbols.terminal, -60, 190, 120, 46, end, "cyan"),
-        arrow([0, -164], [0, -125]),
-        arrow([0, -71], [0, -35]),
-        arrow([0, 49], [0, 95]),
-        arrow([0, 149], [0, 190]),
-        arrow([72, 7], [145, 7]),
-        arrow([217, 34], [217, 67], "#697586", ArrowLineMarkerType.none),
-        arrow([217, 67], [82, 67], "#697586", ArrowLineMarkerType.none),
-        arrow([82, 67], [82, -98]),
-      ];
-    },
-  },
-  {
-    id: "task-tracking",
-    categories: ["hot", "teamwork", "product"],
-    zh: "项目任务跟进",
-    en: "Project task tracking",
-    sourceId: 18061240,
-    docletId: 48175511,
-    descriptionZh: "用于呈现多个项目任务完成情况。",
-    descriptionEn: "Present the completion status of multiple project tasks.",
-    usageCount: 26585,
-    cover: "https://mdn.alipayobjects.com/huamei_0prmtq/afts/img/A*k7jET7KorigAAAAAAAAAAAAADvuFAQ/original",
-    build: (locale) => {
-      const rows = [
-        [choose(locale, "需求确认", "Requirements"), "30%", "blue"],
-        [choose(locale, "交互设计", "Interaction"), "60%", "purple"],
-        [choose(locale, "开发联调", "Development"), "80%", "orange"],
-        [choose(locale, "发布验收", "Release"), "100%", "green"],
-      ] as const;
-      const elements: PlaitElement[] = [
-        label(-230, -150, 220, choose(locale, "项目任务跟进", "Project task tracking")),
-      ];
-      rows.forEach(([name, progress, color], index) => {
-        const y = -95 + index * 72;
-        elements.push(
-          box(BasicShapes.roundRectangle, -230, y, 138, 42, name, "gray", "12"),
-          box(BasicShapes.roundRectangle, -58, y + 7, 250, 28, progress, color, "11"),
-        );
-      });
-      return elements;
-    },
-  },
-  {
     id: "product-milestones",
-    categories: ["hot", "product"],
+    categories: ["product"],
     zh: "产品里程碑",
     en: "Product milestones",
     sourceId: 18061212,
@@ -199,122 +132,6 @@ export const materialTemplates: MaterialTemplate[] = [
           box(BasicShapes.ellipse, x, -12, 44, 44, "", colors[index]),
           box(BasicShapes.roundRectangle, x - 35, 62, 114, 48, name, colors[index], "12"),
           arrow([x + 22, 32], [x + 22, 62], "#94A3B8", ArrowLineMarkerType.none),
-        );
-      });
-      return elements;
-    },
-  },
-  {
-    id: "cross-team-flow",
-    categories: ["hot", "teamwork"],
-    zh: "跨部门流程图",
-    en: "Cross-team workflow",
-    sourceId: 17070453,
-    docletId: 36789848,
-    descriptionZh: "显示一个进程在各部门之间的流程以及一个进程是如何影响公司中不同职能部门的。",
-    descriptionEn: "Show how a process moves between departments and affects different functions.",
-    usageCount: 42218,
-    cover: "https://gw.alipayobjects.com/mdn/prod_resou/afts/img/A*j78FQZ9fJV0AAAAAAAAAAAAAARQnAQ",
-    build: (locale) => {
-      const departments = [
-        choose(locale, "产品", "Product"),
-        choose(locale, "设计", "Design"),
-        choose(locale, "研发", "Engineering"),
-      ];
-      const elements: PlaitElement[] = [];
-      departments.forEach((department, index) => {
-        const y = -190 + index * 130;
-        elements.push(
-          box(BasicShapes.rectangle, -270, y, 540, 112, "", index === 0 ? "blue" : index === 1 ? "purple" : "green"),
-          label(-255, y + 8, 100, department),
-        );
-      });
-      elements.push(
-        box(BasicShapes.roundRectangle, -165, -162, 120, 44, choose(locale, "提出需求", "Request"), "blue", "12"),
-        box(BasicShapes.roundRectangle, 55, -162, 120, 44, choose(locale, "确认范围", "Scope"), "blue", "12"),
-        box(BasicShapes.roundRectangle, -55, -32, 120, 44, choose(locale, "输出设计", "Design"), "purple", "12"),
-        box(BasicShapes.diamond, 120, -42, 105, 64, choose(locale, "评审", "Review"), "yellow", "12"),
-        box(BasicShapes.roundRectangle, -165, 98, 120, 44, choose(locale, "开发联调", "Develop"), "green", "12"),
-        box(BasicShapes.roundRectangle, 55, 98, 120, 44, choose(locale, "上线验收", "Launch"), "green", "12"),
-        arrow([-45, -140], [55, -140]),
-        arrow([115, -118], [5, -32]),
-        arrow([65, -10], [120, -10]),
-        arrow([172, 22], [-105, 98]),
-        arrow([-45, 120], [55, 120]),
-      );
-      return elements;
-    },
-  },
-  {
-    id: "project-process",
-    categories: ["hot", "teamwork", "thinking"],
-    zh: "项目流程图",
-    en: "Project workflow",
-    sourceId: 17054235,
-    docletId: 35107108,
-    descriptionZh: "清晰展示项目计划中各个环节的流程，主要用于项目策划和监督进度。",
-    descriptionEn: "Clearly show each step in a project plan for planning and progress tracking.",
-    usageCount: 34236,
-    cover: "https://gw.alipayobjects.com/mdn/prod_resou/afts/img/A*TyuhTr-nCsUAAAAAAAAAAAAAARQnAQ",
-    build: (locale) => {
-      const center = box(
-        BasicShapes.ellipse,
-        -62,
-        -38,
-        124,
-        76,
-        choose(locale, "项目目标", "Project goal"),
-        "blue",
-      );
-      const steps = [
-        [-250, -150, choose(locale, "需求", "Needs"), "indigo"],
-        [120, -150, choose(locale, "资源", "Resources"), "cyan"],
-        [-250, 100, choose(locale, "计划", "Plan"), "yellow"],
-        [120, 100, choose(locale, "交付", "Delivery"), "green"],
-      ] as const;
-      const elements: PlaitElement[] = [center];
-      steps.forEach(([x, y, text, color]) => {
-        elements.push(box(BasicShapes.roundRectangle, x, y, 130, 54, text, color));
-        elements.push(
-          arrow(
-            [x < 0 ? x + 130 : x, y < 0 ? y + 54 : y],
-            [x < 0 ? -62 : 62, y < 0 ? -22 : 22],
-            "#7A8699",
-          ),
-        );
-      });
-      return elements;
-    },
-  },
-  {
-    id: "org-chart",
-    categories: ["hot", "teamwork"],
-    zh: "组织架构图",
-    en: "Organization chart",
-    sourceId: 17054190,
-    docletId: 35104049,
-    descriptionZh: "用于表达组织结构中的隶属、管理、支持关系。",
-    descriptionEn: "Express reporting, management, and support relationships in an organization.",
-    usageCount: 32439,
-    cover: "https://gw.alipayobjects.com/mdn/prod_resou/afts/img/A*yztHTIgZtggAAAAAAAAAAAAAARQnAQ",
-    build: (locale) => {
-      const root = choose(locale, "项目负责人", "Project lead");
-      const teams = [
-        choose(locale, "产品团队", "Product"),
-        choose(locale, "技术团队", "Engineering"),
-        choose(locale, "设计团队", "Design"),
-      ];
-      const colors: (keyof typeof palette)[] = ["blue", "green", "purple"];
-      const elements: PlaitElement[] = [
-        box(BasicShapes.roundRectangle, -85, -180, 170, 54, root, "gray"),
-      ];
-      teams.forEach((team, index) => {
-        const x = -250 + index * 185;
-        elements.push(
-          box(BasicShapes.roundRectangle, x, -40, 130, 50, team, colors[index]),
-          box(BasicShapes.roundRectangle, x, 72, 130, 44, choose(locale, "核心成员", "Core members"), colors[index], "11"),
-          arrow([0, -126], [x + 65, -40]),
-          arrow([x + 65, 10], [x + 65, 72]),
         );
       });
       return elements;
@@ -351,6 +168,131 @@ export const materialTemplates: MaterialTemplate[] = [
     },
   },
   {
+    id: "api-request-flow",
+    categories: ["hot", "technology"],
+    zh: "API 请求链路",
+    en: "API request flow",
+    build: (locale) => {
+      const nodes = [
+        choose(locale, "客户端", "Client"),
+        "API Gateway",
+        choose(locale, "鉴权服务", "Auth"),
+        choose(locale, "业务服务", "Service"),
+        "Database",
+      ];
+      const colors: (keyof typeof palette)[] = ["blue", "indigo", "purple", "cyan", "green"];
+      const elements: PlaitElement[] = [];
+      nodes.forEach((text, index) => {
+        const x = -340 + index * 170;
+        elements.push(box(BasicShapes.roundRectangle, x, -30, 125, 60, text, colors[index], "11"));
+        if (index < nodes.length - 1) {
+          elements.push(arrow([x + 125, 0], [x + 170, 0]));
+        }
+      });
+      return elements;
+    },
+  },
+  {
+    id: "cicd-pipeline",
+    categories: ["hot", "technology"],
+    zh: "CI/CD 发布流水线",
+    en: "CI/CD pipeline",
+    build: (locale) => {
+      const steps = [
+        choose(locale, "提交代码", "Commit"),
+        choose(locale, "构建镜像", "Build"),
+        choose(locale, "自动化测试", "Test"),
+        choose(locale, "部署发布", "Deploy"),
+      ];
+      const colors: (keyof typeof palette)[] = ["blue", "purple", "orange", "green"];
+      const elements: PlaitElement[] = [
+        label(-300, -110, 240, choose(locale, "CI/CD 发布流水线", "CI/CD pipeline")),
+      ];
+      steps.forEach((text, index) => {
+        const x = -290 + index * 195;
+        elements.push(
+          box(FlowchartSymbols.process, x, -15, 145, 60, text, colors[index], "11"),
+        );
+        if (index < steps.length - 1) {
+          elements.push(arrow([x + 145, 15], [x + 195, 15]));
+        }
+      });
+      return elements;
+    },
+  },
+  {
+    id: "database-er-model",
+    categories: ["hot", "technology"],
+    zh: "数据库 ER 图",
+    en: "Database ER diagram",
+    build: (locale) => {
+      const user = choose(locale, "用户\nid\nname", "User\nid\nname");
+      const order = choose(locale, "订单\nid\nuser_id", "Order\nid\nuser_id");
+      const item = choose(locale, "订单明细\nid\norder_id", "Order item\nid\norder_id");
+      return [
+        box(BasicShapes.rectangle, -300, -54, 130, 108, user, "blue", "11"),
+        box(BasicShapes.rectangle, -65, -54, 130, 108, order, "purple", "11"),
+        box(BasicShapes.rectangle, 170, -54, 130, 108, item, "green", "11"),
+        arrow([-170, 0], [-65, 0], "#7A8699", ArrowLineMarkerType.none),
+        arrow([65, 0], [170, 0], "#7A8699", ArrowLineMarkerType.none),
+      ];
+    },
+  },
+  {
+    id: "frontend-module-map",
+    categories: ["hot", "technology"],
+    zh: "前端模块架构",
+    en: "Frontend module map",
+    build: (locale) => {
+      const root = choose(locale, "Web 应用", "Web app");
+      const modules = [
+        choose(locale, "路由", "Router"),
+        choose(locale, "页面模块", "Pages"),
+        choose(locale, "状态管理", "State"),
+        choose(locale, "组件库", "UI kit"),
+      ];
+      const colors: (keyof typeof palette)[] = ["blue", "purple", "cyan", "green"];
+      const elements: PlaitElement[] = [
+        box(BasicShapes.roundRectangle, -75, -155, 150, 56, root, "indigo"),
+      ];
+      modules.forEach((text, index) => {
+        const x = -300 + index * 165;
+        elements.push(
+          box(BasicShapes.roundRectangle, x, 20, 130, 52, text, colors[index], "11"),
+          arrow([0, -99], [x + 65, 20]),
+        );
+      });
+      return elements;
+    },
+  },
+  {
+    id: "production-troubleshooting",
+    categories: ["technology"],
+    zh: "线上故障排查",
+    en: "Production troubleshooting",
+    build: (locale) => {
+      const alert = choose(locale, "告警", "Alert");
+      const checks = [
+        choose(locale, "服务状态", "Service health"),
+        choose(locale, "日志与指标", "Logs & metrics"),
+        choose(locale, "依赖服务", "Dependencies"),
+      ];
+      const elements: PlaitElement[] = [
+        box(FlowchartSymbols.terminal, -70, -155, 140, 52, alert, "orange"),
+        box(FlowchartSymbols.decision, -75, -55, 150, 82, choose(locale, "是否可复现？", "Reproducible?"), "yellow", "11"),
+        arrow([0, -103], [0, -55]),
+      ];
+      checks.forEach((text, index) => {
+        const x = -260 + index * 190;
+        elements.push(
+          box(BasicShapes.roundRectangle, x, 100, 140, 50, text, ["blue", "purple", "green"][index] as keyof typeof palette, "11"),
+          arrow([0, 27], [x + 70, 100]),
+        );
+      });
+      return elements;
+    },
+  },
+  {
     id: "idea-map",
     categories: ["thinking", "product"],
     zh: "产品创意图",
@@ -380,31 +322,6 @@ export const materialTemplates: MaterialTemplate[] = [
       return elements;
     },
   },
-  // Extra local fixtures keep the library scroll state easy to exercise while
-  // the material service is not connected to the host application yet.
-  {
-    id: "quarterly-roadmap",
-    categories: ["product", "teamwork"],
-    zh: "季度路线图",
-    en: "Quarterly roadmap",
-    build: (locale) => {
-      const quarters = [
-        choose(locale, "Q1 规划", "Q1 Plan"),
-        choose(locale, "Q2 设计", "Q2 Design"),
-        choose(locale, "Q3 开发", "Q3 Build"),
-        choose(locale, "Q4 发布", "Q4 Launch"),
-      ];
-      const elements: PlaitElement[] = [];
-      quarters.forEach((text, index) => {
-        const x = -300 + index * 200;
-        elements.push(box(BasicShapes.roundRectangle, x, -32, 150, 64, text, index % 2 ? "purple" : "blue"));
-        if (index < quarters.length - 1) {
-          elements.push(arrow([x + 150, 0], [x + 200, 0]));
-        }
-      });
-      return elements;
-    },
-  },
   {
     id: "user-experience-map",
     categories: ["product", "thinking"],
@@ -427,51 +344,6 @@ export const materialTemplates: MaterialTemplate[] = [
         elements.push(arrow([0, 34], [x + 70, y]));
       });
       return elements;
-    },
-  },
-  {
-    id: "okr-breakdown",
-    categories: ["teamwork", "thinking"],
-    zh: "OKR 拆解图",
-    en: "OKR breakdown",
-    build: (locale) => {
-      const root = choose(locale, "年度目标", "Annual objective");
-      const objectives = [
-        choose(locale, "提升体验", "Improve experience"),
-        choose(locale, "扩大增长", "Drive growth"),
-        choose(locale, "稳定交付", "Ship reliably"),
-      ];
-      const elements: PlaitElement[] = [box(BasicShapes.roundRectangle, -90, -170, 180, 56, root, "indigo")];
-      objectives.forEach((text, index) => {
-        const x = -280 + index * 190;
-        elements.push(
-          box(BasicShapes.roundRectangle, x, -20, 150, 54, text, "blue"),
-          arrow([0, -114], [x + 75, -20]),
-          box(BasicShapes.roundRectangle, x, 82, 150, 44, choose(locale, "关键结果", "Key result"), "gray", "11"),
-          arrow([x + 75, 34], [x + 75, 82]),
-        );
-      });
-      return elements;
-    },
-  },
-  {
-    id: "risk-matrix",
-    categories: ["product", "teamwork"],
-    zh: "风险矩阵",
-    en: "Risk matrix",
-    build: (locale) => {
-      const labels = [
-        choose(locale, "高影响 / 高概率", "High / likely"),
-        choose(locale, "高影响 / 低概率", "High / unlikely"),
-        choose(locale, "低影响 / 高概率", "Low / likely"),
-        choose(locale, "低影响 / 低概率", "Low / unlikely"),
-      ];
-      const colors: (keyof typeof palette)[] = ["orange", "yellow", "purple", "green"];
-      return labels.flatMap((text, index) => {
-        const x = index % 2 === 0 ? -170 : 20;
-        const y = index < 2 ? -100 : 10;
-        return [box(BasicShapes.rectangle, x, y, 150, 82, text, colors[index])];
-      });
     },
   },
   {

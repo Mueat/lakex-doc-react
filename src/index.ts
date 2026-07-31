@@ -55,6 +55,10 @@ export type {
   ToolbarItemSpec,
   ToolbarModeConfig,
   ToolbarAgentConfig,
+  DrawingBoardAIConfig,
+  DrawingBoardAILocale,
+  DrawingBoardAIRequest,
+  DrawingBoardAIResponse,
 } from "./components/lakex/types";
 
 // Reusable card height resizer (click-to-select + drag + delete-on-Delete).

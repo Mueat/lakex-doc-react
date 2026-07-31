@@ -155,6 +155,7 @@ interface LakexEditorContent {
 | `defaultFontsize` | `DefaultFontsizeConfig` | 默认字号配置：`defaultFontsize`（支持 12/13/14/15/16/19/22/24）。 |
 | `toolbar` | `ToolbarConfig` | 工具栏配置：`agentConfig.default`（默认工具栏）、`agentConfig.table`（表格选区工具栏）。 |
 | `customCard` | `CustomCardsConfig` | 自定义卡片配置（详见下方章节）。 |
+| `drawingBoardAI` | `DrawingBoardAIConfig` | AI 画板助手服务。通过 `generate` 回调连接业务侧模型接口。 |
 
 ### config 使用示例
 
@@ -185,6 +186,32 @@ import '@dlient/lakex-doc-react/style.css';
   }}
 />
 ```
+
+### AI 画板助手
+
+画板工具栏中的 AI 入口不绑定模型厂商，也不会在浏览器中保存 API Key。业务层通过 `drawingBoardAI.generate` 把 `systemPrompt` 作为系统消息、`description` 作为用户消息发送给自己的服务端。画板会校验返回的 JSON，再转换成 Drawnix/Plait 原生元素。
+
+```tsx
+<LakexEditor
+  config={{
+    drawingBoardAI: {
+      generate: async ({ description, systemPrompt, locale }) => {
+        const response = await fetch('/api/ai/drawing-board', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description, systemPrompt, locale }),
+        });
+        if (!response.ok) throw new Error('AI request failed');
+        const result = await response.json();
+        // 可以返回 JSON 对象，也可以返回仅包含 JSON 的字符串
+        return result.json;
+      },
+    },
+  }}
+/>
+```
+
+画板格式规范见 [`docs/lakex-drawing-board-json-format-skills.md`](docs/lakex-drawing-board-json-format-skills.md)。建议服务端启用模型的 JSON/Structured Output 模式，并保留超时、鉴权和用量限制。
 
 ---
 

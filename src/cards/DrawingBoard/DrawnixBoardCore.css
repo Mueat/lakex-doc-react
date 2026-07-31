@@ -1352,3 +1352,307 @@ ne-card-root:has(.lakex-material-library__backdrop) {
     grid-template-columns: 1fr;
   }
 }
+
+.lakex-ai-board-trigger-wrap {
+  position: relative;
+  z-index: 40;
+  order: -19;
+}
+
+.lakex-ai-board-trigger {
+  position: relative;
+  display: grid;
+  width: var(--lg-button-size, 36px);
+  height: var(--lg-button-size, 36px);
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lakex-ai-board-trigger:hover,
+.lakex-ai-board-trigger:focus-visible,
+.lakex-ai-board-trigger[aria-expanded="true"] {
+  background: var(--color-surface-primary-container, #eef4ff);
+}
+
+.lakex-ai-board-trigger svg {
+  width: 23px;
+  height: 23px;
+}
+
+.lakex-ai-board-trigger::after {
+  position: absolute;
+  z-index: 260;
+  top: 50%;
+  left: calc(100% + 10px);
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: #262626;
+  color: #fff;
+  content: attr(data-tooltip);
+  font-size: 12px;
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-2px, -50%);
+  transition: opacity 120ms ease, transform 120ms ease;
+  white-space: nowrap;
+}
+
+.lakex-ai-board-trigger:hover::after,
+.lakex-ai-board-trigger:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.lakex-ai-board-overlay {
+  position: absolute;
+  z-index: 250;
+  inset: 0;
+  display: grid;
+  padding: 24px;
+  place-items: center;
+  background: rgba(20, 24, 31, 0.38);
+  backdrop-filter: blur(1px);
+}
+
+.lakex-ai-board-dialog {
+  box-sizing: border-box;
+  width: min(500px, 100%);
+  padding: 20px;
+  border: 1px solid #e3e6eb;
+  border-radius: 12px;
+  background: #fff;
+  color: #262626;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+}
+
+.lakex-ai-board-dialog__header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.lakex-ai-board-dialog__header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.lakex-ai-board-dialog__header p {
+  margin: 4px 0 0;
+  color: #73777f;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.lakex-ai-board-dialog__close {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #74777d;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 26px;
+}
+
+.lakex-ai-board-dialog__close:hover {
+  background: #f2f3f5;
+  color: #262626;
+}
+
+.lakex-ai-board-dialog textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 148px;
+  margin-top: 16px;
+  padding: 11px 12px;
+  resize: vertical;
+  border: 1px solid #d9dde4;
+  border-radius: 8px;
+  outline: none;
+  background: #fff;
+  color: #262626;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.lakex-ai-board-dialog textarea:focus {
+  border-color: #25b864;
+  box-shadow: 0 0 0 2px rgba(37, 184, 100, 0.14);
+}
+
+.lakex-ai-board-dialog textarea::placeholder {
+  color: #a0a4ab;
+}
+
+.lakex-ai-board-dialog__options {
+  display: flex;
+  gap: 20px;
+  margin-top: 12px;
+  color: #555a63;
+  font-size: 13px;
+}
+
+.lakex-ai-board-dialog__options label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.lakex-ai-board-dialog__options input {
+  accent-color: #1ca05a;
+}
+
+.lakex-ai-board-dialog__notice,
+.lakex-ai-board-dialog__error {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.lakex-ai-board-dialog__notice {
+  background: #fff8e8;
+  color: #8a641d;
+}
+
+.lakex-ai-board-dialog__error {
+  background: #fff1f0;
+  color: #c83b38;
+}
+
+.lakex-ai-board-dialog__footer {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+
+.lakex-ai-board-dialog__footer > span {
+  color: #999da5;
+  font-size: 12px;
+}
+
+.lakex-ai-board-dialog__footer > div {
+  display: flex;
+  gap: 8px;
+}
+
+.lakex-ai-board-dialog__footer button {
+  min-width: 68px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid #d9dde4;
+  border-radius: 6px;
+  background: #fff;
+  color: #4f535a;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.lakex-ai-board-dialog__footer button:hover:not(:disabled) {
+  border-color: #25b864;
+  color: #159653;
+}
+
+.lakex-ai-board-dialog__footer .lakex-ai-board-dialog__generate {
+  border-color: #20a95d;
+  background: #20a95d;
+  color: #fff;
+}
+
+.lakex-ai-board-dialog__footer .lakex-ai-board-dialog__generate:hover:not(:disabled) {
+  border-color: #168c4c;
+  background: #168c4c;
+  color: #fff;
+}
+
+.lakex-ai-board-dialog__footer button:disabled,
+.lakex-ai-board-dialog__close:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-overlay {
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog {
+  border-color: #3d3d3d;
+  background: #242424;
+  color: #ededed;
+  box-shadow: 0 16px 52px rgba(0, 0, 0, 0.52);
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__header p,
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__options {
+  color: #aaaeb5;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__close {
+  color: #aaa;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__close:hover {
+  background: #333;
+  color: #fff;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog textarea {
+  border-color: #4a4a4a;
+  background: #1a1a1a;
+  color: #ededed;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__notice {
+  background: rgba(217, 164, 65, 0.14);
+  color: #e4bd69;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__error {
+  background: rgba(200, 59, 56, 0.16);
+  color: #ef8a87;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__footer button {
+  border-color: #4a4a4a;
+  background: #2b2b2b;
+  color: #d5d5d5;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__footer .lakex-ai-board-dialog__generate {
+  border-color: #25995e;
+  background: #25995e;
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .lakex-ai-board-overlay {
+    padding: 12px;
+  }
+
+  .lakex-ai-board-dialog {
+    padding: 16px;
+  }
+
+  .lakex-ai-board-dialog__footer {
+    align-items: flex-end;
+  }
+
+  .lakex-ai-board-dialog__footer > span {
+    max-width: 110px;
+  }
+}

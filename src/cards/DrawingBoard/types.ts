@@ -1,4 +1,10 @@
+import type { DrawingBoardAIConfig } from '../../components/lakex/types';
+
 export type DrawingBoardPreset = 'drawing' | 'flowchart' | 'uml' | 'mindmap';
+
+export interface LakexDrawingBoardEditorHost {
+  __lakexDrawingBoardAI?: DrawingBoardAIConfig;
+}
 
 export interface IDrawingBoardCardValue {
   /** Drawnix / Plait scene format used by all newly saved drawing cards. */
