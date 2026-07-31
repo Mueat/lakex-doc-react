@@ -38,6 +38,17 @@ export interface CardResizerProps {
   children?: React.ReactNode;
   /** 选中态下按 Delete / Backspace（焦点不在输入框时）触发，参数为触发按键的 DOM 事件目标，便于上层定位并删除卡片 */
   onDelete?: (target: EventTarget | null) => void;
+  /**
+   * Allows interactive card content to keep Delete / Backspace for itself.
+   * Return false to prevent the resizer from deleting the surrounding card.
+   */
+  shouldHandleDeleteShortcut?: (event: KeyboardEvent) => boolean;
+  /**
+   * Interactive areas such as canvases do not necessarily take DOM focus.
+   * Remember the last pointer target in this selector and leave Delete /
+   * Backspace to that area until the user clicks another part of the card.
+   */
+  deleteShortcutExclusionSelector?: string;
 }
 
 export interface CardResizerState {
@@ -55,6 +66,7 @@ export class CardResizer extends React.Component<CardResizerProps, CardResizerSt
 
   private startY = 0;
   private startHeight = 0;
+  private interactiveDeleteScopeActive = false;
   private rootRef = React.createRef<HTMLDivElement>();
 
   constructor(props: CardResizerProps) {
@@ -96,6 +108,8 @@ export class CardResizer extends React.Component<CardResizerProps, CardResizerSt
     ) {
       return;
     }
+    if (this.interactiveDeleteScopeActive) return;
+    if (this.props.shouldHandleDeleteShortcut?.(e) === false) return;
     if (typeof this.props.onDelete === 'function') {
       e.preventDefault();
       this.props.onDelete(e.target);
@@ -107,10 +121,18 @@ export class CardResizer extends React.Component<CardResizerProps, CardResizerSt
     this.setState({ selected: true });
   }
 
+  private handlePointerDownCapture = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const selector = this.props.deleteShortcutExclusionSelector;
+    if (!selector) return;
+    const target = event.target as Element | null;
+    this.interactiveDeleteScopeActive = !!target?.closest(selector);
+  };
+
   // 点击发生在卡片根节点之外 -> 取消选中
   private handleDocMouseDown(e: MouseEvent): void {
     const root = this.rootRef.current;
     if (root && !root.contains(e.target as Node)) {
+      this.interactiveDeleteScopeActive = false;
       this.setState({ selected: false });
     }
   }
@@ -153,6 +175,7 @@ export class CardResizer extends React.Component<CardResizerProps, CardResizerSt
         ref={this.rootRef}
         className={rootClass}
         style={{ position: 'relative', height, width: '100%' }}
+        onPointerDownCapture={this.handlePointerDownCapture}
         onClick={this.handleClick}
       >
         <div className="ne-card-resizer-content" style={{ height: '100%', width: '100%' }}>

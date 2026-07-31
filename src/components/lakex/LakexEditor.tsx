@@ -141,12 +141,27 @@ export function LakexEditor(props: LakexEditorProps) {
       propsConfigs
     );
 
+    const {
+      drawingBoardAI,
+      ...nativeEditorConfig
+    } = merged as LakexEditorConfig;
     const editor = createOpenEditor(containerRef.current, {
-      ...merged,
+      ...nativeEditorConfig,
       // bookmark 配置已写入默认配置（src/configs/editor.ts），
       // 业务侧可通过 props.config.bookmark 覆盖（detailAction / fetchDetailHandler / pasteLinkConvert）。
       darkMode: props.dark ? true : false,
     });
+
+    // `drawingBoardAI` is a React adapter capability rather than a native
+    // Lakex plugin option. Keep it on the editor instance so every drawing
+    // card can use the correct service in multi-editor pages.
+    editor.__lakexDrawingBoardAI = drawingBoardAI;
+    
+    const parsedCardSelectConfig = editor.plugins?.slash?.option?.getParsedConfig?.(
+      'general',
+      'cardSelect',
+    );
+    setCardSelectConfig(parsedCardSelectConfig || null);
 
     // 设置内容
     if (content) {

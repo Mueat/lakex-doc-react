@@ -542,6 +542,28 @@ export interface BookmarkConfig {
   pasteLinkConvert?: boolean
 }
 
+export type DrawingBoardAILocale = "zh-CN" | "en-US";
+
+export interface DrawingBoardAIRequest {
+  /** 用户在 AI 画板助手中输入的原始描述。 */
+  description: string;
+  /** 完整的画板 JSON 格式规范，可直接作为模型的 system prompt。 */
+  systemPrompt: string;
+  locale: DrawingBoardAILocale;
+}
+
+export type DrawingBoardAIResponse = string | Record<string, unknown>;
+
+export interface DrawingBoardAIConfig {
+  /**
+   * 调用业务侧 AI 服务。前端画板不会保存 API Key，也不绑定具体模型。
+   * 返回值可以是 JSON 字符串，也可以是已经解析的 JSON 对象。
+   */
+  generate: (
+    request: DrawingBoardAIRequest,
+  ) => Promise<DrawingBoardAIResponse>;
+}
+
 // ============================================================================
 // createOpenEditor 的完整配置对象
 // ============================================================================
@@ -593,6 +615,8 @@ export interface LakexEditorConfig {
   customCard?: CustomCardsConfig;
   // Bookmark配置，配置后链接可以转为书签卡片样式
   bookmark?: BookmarkConfig;
+  /** AI 画板助手，由业务层注入实际的模型调用。 */
+  drawingBoardAI?: DrawingBoardAIConfig;
   
 }
 

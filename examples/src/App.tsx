@@ -13,7 +13,6 @@ function App() {
     const jsonContent = contents.find((c) => c.type === "json")?.text;
     if (jsonContent) {
       setContent(jsonContent);
-      console.log("Content changed:", jsonContent);
     }
   };
 

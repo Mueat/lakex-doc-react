@@ -5,6 +5,7 @@ const i18nMap = {
         'base': '基础',
         'layout': '布局和样式',
         'tools': '小工具',
+        'drawing-board': '画板',
         'programmer': '程序员',
         'third-party-services': '第三方服务',
         'search': '请输入搜索内容',
@@ -14,6 +15,7 @@ const i18nMap = {
         'base': 'Basic',
         'layout': 'Layout and style',
         'tools': 'Tools',
+        'drawing-board': 'Drawing Board',
         'programmer': 'Programmer\'s area',
         'third-party-services': 'Embed third-party services',
         'search': 'Search by funtion name',
@@ -78,14 +80,24 @@ const GetDefaultSlashConfig = (lan: 'zh-cn' | 'en-us') => {
                     ]
                 },
                 {
+                    "title": i18nMap[lan]['drawing-board'],
+                    "name": "group-drawing-board",
+                    "type": "normal",
+                    "items": [
+                        "custom-drawing-board",
+                        "custom-flowchart-board",
+                        "custom-uml-board",
+                        "custom-drawing-mindmap-board"
+                    ]
+                },
+                {
                     "title": i18nMap[lan]['programmer'],
                     "name": "group-files",
                     "type": "normal",
                     "items": [
                         "codeblock",
                         "math",
-                        "custom-text-to-diagram",
-                        "custom-mindmap-card"
+                        "custom-text-to-diagram"
                     ]
                 },
                 {
@@ -94,7 +106,6 @@ const GetDefaultSlashConfig = (lan: 'zh-cn' | 'en-us') => {
                     "type": "normal",
                     "items": [
                         // "mention",
-                        "custom-drawing-board",
                         "calendar",
                         "dateCard",
                         "unicodeEmoji",
@@ -173,14 +184,24 @@ const GetDefaultSlashConfig = (lan: 'zh-cn' | 'en-us') => {
                     ]
                 },
                 {
+                    "title": i18nMap[lan]['drawing-board'],
+                    "name": "group-drawing-board",
+                    "type": "normal",
+                    "items": [
+                        "custom-drawing-board",
+                        "custom-flowchart-board",
+                        "custom-uml-board",
+                        "custom-drawing-mindmap-board"
+                    ]
+                },
+                {
                     "title": i18nMap[lan]['programmer'],
                     "name": "group-files",
                     "type": "normal",
                     "items": [
                         "math",
                         "codeblock",
-                        "custom-text-to-diagram",
-                        "custom-mindmap-card"
+                        "custom-text-to-diagram"
                     ]
                 },
                 {
@@ -188,7 +209,6 @@ const GetDefaultSlashConfig = (lan: 'zh-cn' | 'en-us') => {
                     "name": "group-files",
                     "type": "normal",
                     "items": [
-                        "custom-drawing-board",
                         "dateCard",
                         "unicodeEmoji"
                     ]
@@ -266,14 +286,24 @@ const GetDefaultSlashConfig = (lan: 'zh-cn' | 'en-us') => {
                     ]
                 },
                 {
+                    "title": i18nMap[lan]['drawing-board'],
+                    "name": "group-drawing-board",
+                    "type": "normal",
+                    "items": [
+                        "custom-drawing-board",
+                        "custom-flowchart-board",
+                        "custom-uml-board",
+                        "custom-drawing-mindmap-board"
+                    ]
+                },
+                {
                     "title": i18nMap[lan]['programmer'],
                     "name": "group-files",
                     "type": "normal",
                     "items": [
                         "codeblock",
                         "math",
-                        "custom-text-to-diagram",
-                        "custom-mindmap-card"
+                        "custom-text-to-diagram"
                     ]
                 },
                 {
@@ -281,7 +311,6 @@ const GetDefaultSlashConfig = (lan: 'zh-cn' | 'en-us') => {
                     "name": "group-files",
                     "type": "normal",
                     "items": [
-                        "custom-drawing-board",
                         "calendar",
                         "dateCard",
                         "unicodeEmoji"

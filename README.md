@@ -167,6 +167,7 @@ Config reference: https://www.yuque.com/yuque/developer/hrz4raqhg9bsv9g9
 | `defaultFontsize` | `DefaultFontsizeConfig` | Default font size config: `defaultFontsize` (12/13/14/15/16/19/22/24). |
 | `toolbar` | `ToolbarConfig` | Toolbar config: `agentConfig.default` (default toolbar), `agentConfig.table` (table selection toolbar). |
 | `customCard` | `CustomCardsConfig` | Custom card config (see section below). |
+| `drawingBoardAI` | `DrawingBoardAIConfig` | AI board assistant service, connected through the `generate` callback. |
 
 ### config Usage Example
 
@@ -197,6 +198,36 @@ import '@dlient/lakex-doc-react/style.css';
   }}
 />
 ```
+
+### AI board assistant
+
+The AI toolbar entry is provider-neutral and does not store model credentials in
+the browser. Connect it to your server with `drawingBoardAI.generate`. Send
+`systemPrompt` as the model system message and `description` as the user
+message; the board validates the returned JSON before creating native
+Drawnix/Plait elements.
+
+```tsx
+<LakexEditor
+  config={{
+    drawingBoardAI: {
+      generate: async ({ description, systemPrompt, locale }) => {
+        const response = await fetch('/api/ai/drawing-board', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description, systemPrompt, locale }),
+        });
+        if (!response.ok) throw new Error('AI request failed');
+        const result = await response.json();
+        return result.json;
+      },
+    },
+  }}
+/>
+```
+
+See [`docs/lakex-drawing-board-json-format-skills.md`](docs/lakex-drawing-board-json-format-skills.md)
+for the model-facing schema.
 
 ---
 

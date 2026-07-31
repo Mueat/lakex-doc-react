@@ -7,39 +7,156 @@
 import React from "react";
 import { Drawnix } from "lakex-drawnix";
 import {
+  addSelectedElement,
   BoardTransforms,
+  clearSelectedElement,
+  getHitElementByPoint,
+  getViewportOrigination,
   getSelectedElements,
   PlaitBoard,
+  PlaitHistoryBoard,
   ThemeColorMode,
   Transforms,
+  toImage,
   type PlaitElement,
   type Viewport,
 } from "@plait/core";
 import {
   BoardCreationMode,
+  buildText,
   getTextEditorsByElement,
   getTextManages,
   setCreationMode,
 } from "@plait/common";
-import { BasicShapes } from "@plait/draw";
-import { getDefaultFontSizeForMindElement } from "@plait/mind";
+import {
+  ArrowLineMarkerType,
+  ArrowLineShape,
+  BasicShapes,
+  createArrowLineElement,
+  createTextElement,
+  DrawTransforms,
+  FlowchartSymbols,
+  getTextShapeProperty,
+  UMLSymbols,
+} from "@plait/draw";
+import {
+  createEmptyMind,
+  createMindElement,
+  getDefaultFontSizeForMindElement,
+  MindTransforms,
+} from "@plait/mind";
 import {
   PlaitMarkEditor,
   TextTransforms,
   type FontSizes,
 } from "@plait/text-plugins";
 import LakexShapeCatalog from "./LakexShapeCatalog";
-import type { IDrawingBoardCardValue } from "./types";
+import LakexExportMenu from "./LakexExportMenu";
+import LakexMaterialLibrary, {
+  type LakexMaterialLibraryHandle,
+} from "./LakexMaterialLibrary";
+import LakexBoardContextMenu from "./LakexBoardContextMenu";
+import LakexAIBoardAssistant, {
+  type AIBoardApplyMode,
+} from "./LakexAIBoardAssistant";
+import type { DrawingBoardAIConfig } from "../../components/lakex/types";
+import type { DrawingBoardPreset, IDrawingBoardCardValue } from "./types";
 import "./DrawnixBoardCore.css";
 
 type Locale = "zh-CN" | "en-US";
 type BoardTheme = "light" | "dark" | "system";
+
+const insertArrow = (board: PlaitBoard, start: [number, number], end: [number, number]) => {
+  const arrow = createArrowLineElement(
+    ArrowLineShape.straight,
+    [start, end],
+    { marker: ArrowLineMarkerType.none },
+    { marker: ArrowLineMarkerType.arrow },
+  );
+  Transforms.insertNode(board, arrow, [board.children.length]);
+};
+
+const PRESET_SCALE = 0.8;
+
+const scalePresetPoint = (
+  point: [number, number],
+  origin: [number, number],
+): [number, number] => [
+  origin[0] + (point[0] - origin[0]) * PRESET_SCALE,
+  origin[1] + (point[1] - origin[1]) * PRESET_SCALE,
+];
+
+const PRESET_LABEL_FONT_SIZE = "12";
+const PRESET_LABEL_MIN_WIDTH = 56;
+const PRESET_LABEL_MIN_HEIGHT = 20;
+
+const insertLabel = (board: PlaitBoard, point: [number, number], text: string) => {
+  const label = buildText(text, undefined, { "font-size": PRESET_LABEL_FONT_SIZE });
+  const textSize = getTextShapeProperty(board, label, PRESET_LABEL_FONT_SIZE);
+  const width = Math.max(textSize.width, PRESET_LABEL_MIN_WIDTH);
+  const height = Math.max(textSize.height, PRESET_LABEL_MIN_HEIGHT);
+  const element = createTextElement(
+    board,
+    [point, [point[0] + width, point[1] + height]],
+    label,
+  );
+  Transforms.insertNode(board, element, [board.children.length]);
+};
+
+const insertPresetScene = (
+  board: PlaitBoard,
+  preset: DrawingBoardPreset,
+  locale: Locale,
+) => {
+  const zh = locale === "zh-CN";
+  if (preset === "flowchart") {
+    const point = (value: [number, number]) => scalePresetPoint(value, [540, 370]);
+    DrawTransforms.insertGeometry(board, [point([460, 120]), point([620, 180])], FlowchartSymbols.terminal);
+    DrawTransforms.insertGeometry(board, [point([460, 250]), point([620, 320])], FlowchartSymbols.process);
+    DrawTransforms.insertGeometry(board, [point([460, 390]), point([620, 490])], FlowchartSymbols.decision);
+    DrawTransforms.insertGeometry(board, [point([460, 560]), point([620, 620])], FlowchartSymbols.terminal);
+    insertLabel(board, point([515, 142]), zh ? "开始" : "Start");
+    insertLabel(board, point([500, 272]), zh ? "处理" : "Process");
+    insertLabel(board, point([515, 425]), zh ? "判断" : "Decision");
+    insertLabel(board, point([515, 580]), zh ? "结束" : "End");
+    insertArrow(board, point([540, 180]), point([540, 250]));
+    insertArrow(board, point([540, 320]), point([540, 390]));
+    insertArrow(board, point([540, 490]), point([540, 560]));
+    return;
+  }
+
+  if (preset === "uml") {
+    const point = (value: [number, number]) => scalePresetPoint(value, [625, 315]);
+    DrawTransforms.insertGeometry(board, [point([230, 245]), point([350, 365])], UMLSymbols.actor);
+    DrawTransforms.insertGeometry(board, [point([470, 260]), point([670, 350])], UMLSymbols.useCase);
+    DrawTransforms.insertGeometry(board, [point([790, 205]), point([1020, 405])], UMLSymbols.class);
+    insertLabel(board, point([260, 385]), zh ? "用户" : "User");
+    insertLabel(board, point([525, 292]), zh ? "提交申请" : "Submit request");
+    insertLabel(board, point([850, 425]), zh ? "申请服务" : "Request service");
+    insertArrow(board, point([350, 305]), point([470, 305]));
+    insertArrow(board, point([670, 305]), point([790, 305]));
+    return;
+  }
+
+  if (preset === "mindmap") {
+    const root = createEmptyMind(board, [600, 320]);
+    root.data.topic = buildText(zh ? "主题" : "Topic", undefined, { "font-size": "14" }) as any;
+    root.children = [
+      createMindElement(buildText(zh ? "需求" : "Requirements", undefined, { "font-size": "12" }) as any, {}),
+      createMindElement(buildText(zh ? "方案" : "Solution", undefined, { "font-size": "12" }) as any, {}),
+      createMindElement(buildText(zh ? "计划" : "Plan", undefined, { "font-size": "12" }) as any, {}),
+    ];
+    root.rightNodeCount = root.children.length;
+    MindTransforms.insertMind(board as any, root);
+  }
+};
 
 interface Props {
   value?: IDrawingBoardCardValue | null;
   readOnly?: boolean;
   locale: Locale;
   theme: BoardTheme;
+  ai?: DrawingBoardAIConfig;
   onChange?: (value: Partial<IDrawingBoardCardValue>) => void;
 }
 
@@ -67,13 +184,26 @@ export default function DrawnixBoardCore({
   readOnly,
   locale,
   theme,
+  ai,
   onChange,
 }: Props) {
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const boardRef = React.useRef<PlaitBoard | null>(null);
+  const materialLibraryRef = React.useRef<LakexMaterialLibraryHandle | null>(null);
+  const boardInteractionActiveRef = React.useRef(false);
   const [board, setBoard] = React.useState<PlaitBoard | null>(null);
   const [shapeCatalogOpen, setShapeCatalogOpen] = React.useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = React.useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [contextMenuHasSelection, setContextMenuHasSelection] =
+    React.useState(false);
   const normalizeTextScheduledRef = React.useRef(false);
+  const exportSnapshotTimerRef = React.useRef<number | null>(null);
+  const exportSnapshotVersionRef = React.useRef(0);
+  const presetFrameRef = React.useRef<number | null>(null);
+  const presetFitFrameRef = React.useRef<number | null>(null);
   const systemDark = useSystemDark(theme === "system");
   const isDark = theme === "dark" || (theme === "system" && systemDark);
   const themeColorMode = isDark ? ThemeColorMode.dark : ThemeColorMode.default;
@@ -85,6 +215,84 @@ export default function DrawnixBoardCore({
   }, [themeColorMode]);
 
   React.useEffect(() => {
+    if (!board || readOnly || typeof window === "undefined") return;
+
+    const updateBoardInteractionState = (event: PointerEvent) => {
+      const root = rootRef.current;
+      const path = event.composedPath();
+      if (
+        root &&
+        path.some((target) => target instanceof Node && root.contains(target))
+      ) {
+        boardInteractionActiveRef.current = true;
+        return;
+      }
+      // Native Drawnix popups are portalled outside the board but belong to
+      // the current board interaction. Clicking one must not deactivate it.
+      if (
+        path.some(
+          (target) =>
+            target instanceof Element &&
+            !!target.closest(".plait-board-attached"),
+        )
+      ) {
+        return;
+      }
+      boardInteractionActiveRef.current = false;
+    };
+
+    const protectBoardDeleteShortcut = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      if (
+        !boardInteractionActiveRef.current &&
+        !PlaitBoard.isFocus(board)
+      ) {
+        return;
+      }
+
+      const target = event.target instanceof Element ? event.target : null;
+      const root = rootRef.current;
+      const editable = target?.closest(
+        'input, textarea, select, [contenteditable="true"]',
+      );
+      // Do not mistake Lakex's outer contenteditable editor root for a
+      // Drawnix text editor. Only a real form control or an editable node
+      // contained by this board should receive the native editing shortcut.
+      if (
+        target?.matches("input, textarea, select") ||
+        (editable && root?.contains(editable))
+      ) {
+        return;
+      }
+
+      // Lakex owns a document-level card deletion shortcut, while Drawnix
+      // normally receives the same event later from a window bubble listener.
+      // Handle the shortcut at the earliest boundary, then keep it out of the
+      // host editor so deleting a selected drawing never removes the card.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      board.globalKeyDown(event);
+      board.keyDown(event);
+    };
+
+    window.addEventListener(
+      "pointerdown",
+      updateBoardInteractionState,
+      true,
+    );
+    window.addEventListener("keydown", protectBoardDeleteShortcut, true);
+    return () => {
+      window.removeEventListener(
+        "pointerdown",
+        updateBoardInteractionState,
+        true,
+      );
+      window.removeEventListener("keydown", protectBoardDeleteShortcut, true);
+      boardInteractionActiveRef.current = false;
+    };
+  }, [board, readOnly]);
+
+  React.useEffect(() => {
     if (!shapeCatalogOpen) return;
     // Dismiss any native creation popover before opening the custom shape
     // catalog in the same toolbar area.
@@ -93,8 +301,57 @@ export default function DrawnixBoardCore({
     );
   }, [shapeCatalogOpen]);
 
-  const scene = (value?.plaitValue || []) as PlaitElement[];
+  const incomingScene = (value?.plaitValue || []) as PlaitElement[];
+  const incomingSceneSignature = JSON.stringify(incomingScene);
+  const [scene, setScene] = React.useState<PlaitElement[]>(incomingScene);
+  const sceneSignatureRef = React.useRef(incomingSceneSignature);
   const viewport = value?.plaitViewport as Viewport | undefined;
+
+  // Lakex persists each board operation back into the card. Keep the board's
+  // own array reference for that round trip: feeding a cloned-but-identical
+  // value back to Drawnix makes its wrapper fit the viewport again.
+  React.useEffect(() => {
+    if (incomingSceneSignature === sceneSignatureRef.current) return;
+    sceneSignatureRef.current = incomingSceneSignature;
+    setScene(incomingScene);
+  }, [incomingScene, incomingSceneSignature]);
+
+  const scheduleExportSnapshot = React.useCallback(
+    (targetBoard: PlaitBoard) => {
+      if (!onChange || typeof window === "undefined") return;
+      if (exportSnapshotTimerRef.current !== null) {
+        window.clearTimeout(exportSnapshotTimerRef.current);
+      }
+      const snapshotVersion = ++exportSnapshotVersionRef.current;
+      exportSnapshotTimerRef.current = window.setTimeout(() => {
+        void toImage(targetBoard, { padding: 16 })
+          .then((previewImage) => {
+            if (snapshotVersion !== exportSnapshotVersionRef.current) return;
+            if (previewImage) onChange({ previewImage });
+          })
+          .catch(() => {
+            // Image export must not interrupt normal board editing, for
+            // example when a pasted cross-origin image cannot be serialized.
+          });
+      }, 250);
+    },
+    [onChange],
+  );
+
+  React.useEffect(
+    () => () => {
+      if (exportSnapshotTimerRef.current !== null) {
+        window.clearTimeout(exportSnapshotTimerRef.current);
+      }
+      if (presetFrameRef.current !== null) {
+        window.cancelAnimationFrame(presetFrameRef.current);
+      }
+      if (presetFitFrameRef.current !== null) {
+        window.cancelAnimationFrame(presetFitFrameRef.current);
+      }
+    },
+    [],
+  );
   const scheduleTextAutoSize = (targetBoard: PlaitBoard) => {
     if (normalizeTextScheduledRef.current) return;
     normalizeTextScheduledRef.current = true;
@@ -227,6 +484,121 @@ export default function DrawnixBoardCore({
     );
   };
 
+  const isBoardCanvasTarget = (target: EventTarget | null) => {
+    const element = target instanceof Element
+      ? target
+      : target instanceof Node
+        ? target.parentElement
+        : null;
+    if (!element?.closest(".plait-board-container")) return false;
+    return !element.closest(
+      ".draw-toolbar, .plait-board-attached, [role=dialog], [data-lakex-shape-catalog]",
+    );
+  };
+
+  const getBoardPointAt = (
+    clientX: number,
+    clientY: number,
+  ): [number, number] | null => {
+    const targetBoard = boardRef.current;
+    if (!targetBoard) return null;
+    const container = PlaitBoard.getBoardContainer(targetBoard).getBoundingClientRect();
+    const origin = getViewportOrigination(targetBoard) ?? [0, 0];
+    const zoom = targetBoard.viewport.zoom || 1;
+    return [
+      origin[0] + (clientX - container.left) / zoom,
+      origin[1] + (clientY - container.top) / zoom,
+    ];
+  };
+
+  const getContextMenuBoardPoint = () =>
+    contextMenuPosition
+      ? getBoardPointAt(contextMenuPosition.x, contextMenuPosition.y)
+      : null;
+
+  const insertContextText = () => {
+    const targetBoard = boardRef.current;
+    const point = getContextMenuBoardPoint();
+    if (!targetBoard || !point) return;
+    DrawTransforms.insertText(targetBoard, point, locale === "zh-CN" ? "文本" : "Text");
+  };
+
+  const insertContextShape = () => {
+    const targetBoard = boardRef.current;
+    const point = getContextMenuBoardPoint();
+    if (!targetBoard || !point) return;
+    DrawTransforms.insertGeometry(
+      targetBoard,
+      [point, [point[0] + 160, point[1] + 88]],
+      BasicShapes.roundRectangle,
+    );
+  };
+
+  const insertContextLine = () => {
+    const targetBoard = boardRef.current;
+    const point = getContextMenuBoardPoint();
+    if (!targetBoard || !point) return;
+    insertArrow(targetBoard, point, [point[0] + 180, point[1]]);
+  };
+
+  const setContextActualSize = () => {
+    const targetBoard = boardRef.current;
+    if (!targetBoard) return;
+    BoardTransforms.updateViewport(
+      targetBoard,
+      getViewportOrigination(targetBoard) ?? [0, 0],
+      1,
+    );
+  };
+
+  const preserveContextSelection = (clientX: number, clientY: number) => {
+    const targetBoard = boardRef.current;
+    const point = getBoardPointAt(clientX, clientY);
+    if (!targetBoard || !point) return false;
+    // A right click on an unselected shape should operate on that shape.
+    // More importantly, do this before Drawnix's native mouse handlers can
+    // clear the current selection as focus leaves the canvas.
+    if (!getSelectedElements(targetBoard).length) {
+      const hitElement = getHitElementByPoint(targetBoard, point);
+      if (hitElement) {
+        clearSelectedElement(targetBoard);
+        addSelectedElement(targetBoard, hitElement);
+      }
+    }
+    return materialLibraryRef.current?.captureSelection() ??
+      getSelectedElements(targetBoard).length > 0;
+  };
+
+  const applyAIGeneratedElements = React.useCallback(
+    (elements: PlaitElement[], mode: AIBoardApplyMode) => {
+      const targetBoard = boardRef.current;
+      if (!targetBoard || !elements.length) return;
+      clearSelectedElement(targetBoard);
+      PlaitHistoryBoard.withNewBatch(targetBoard, () => {
+        if (mode === "replace") {
+          for (let index = targetBoard.children.length - 1; index >= 0; index -= 1) {
+            Transforms.removeNode(targetBoard, [index]);
+          }
+        }
+        elements.forEach((element) => {
+          Transforms.insertNode(targetBoard, element, [
+            targetBoard.children.length,
+          ]);
+        });
+      });
+      // Geometry hosts are created during the next React/Plait update. Fit on
+      // the following frame so the generated diagram is centered and visible.
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (boardRef.current === targetBoard) {
+            BoardTransforms.fitViewport(targetBoard);
+          }
+        });
+      });
+    },
+    [],
+  );
+
   return (
     <div
       ref={rootRef}
@@ -235,6 +607,12 @@ export default function DrawnixBoardCore({
       }`}
       data-theme={isDark ? "dark" : "light"}
       onPointerDownCapture={(event) => {
+        if (event.button === 2 && isBoardCanvasTarget(event.target)) {
+          event.preventDefault();
+          event.stopPropagation();
+          preserveContextSelection(event.clientX, event.clientY);
+          return;
+        }
         if (isShapeTrigger(event.target)) {
           event.preventDefault();
           event.stopPropagation();
@@ -260,6 +638,37 @@ export default function DrawnixBoardCore({
           event.stopPropagation();
         }
       }}
+      onContextMenuCapture={(event) => {
+        if (!isBoardCanvasTarget(event.target)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        boardInteractionActiveRef.current = true;
+        setContextMenuHasSelection(
+          preserveContextSelection(event.clientX, event.clientY),
+        );
+        setShapeCatalogOpen(false);
+        setContextMenuPosition({ x: event.clientX, y: event.clientY });
+      }}
+      onKeyDown={(event) => {
+        const target = event.target as Element | null;
+        const isTextEditingTarget = !!target?.closest(
+          '[contenteditable="true"], input, textarea, select',
+        );
+        if (
+          (event.key === "Delete" || event.key === "Backspace") &&
+          isTextEditingTarget
+        ) {
+          // Slate handles the deletion at the editing target. Stop afterward
+          // so Lakex's ancestor card shortcut cannot delete the whole board.
+          event.stopPropagation();
+          return;
+        }
+        if (event.key === "Enter" && isTextEditingTarget) {
+          // Let Slate process Enter at its target, but keep the event from
+          // reaching Drawnix's document-level board hotkey afterwards.
+          event.stopPropagation();
+        }
+      }}
     >
       <Drawnix
         key={language}
@@ -273,14 +682,45 @@ export default function DrawnixBoardCore({
           setBoard(board);
           board.options.readonly = !!readOnly;
           BoardTransforms.updateThemeColor(board, themeColorMode);
+          const preset = value?.preset;
+          if (
+            !readOnly &&
+            preset &&
+            preset !== "drawing" &&
+            !value?.presetInitialized &&
+            board.children.length === 0
+          ) {
+            // Board creation and its first viewport measurement happen in
+            // separate passive effects. Mind children need their root's
+            // renderer first, so create every preset on the next frame.
+            presetFrameRef.current = window.requestAnimationFrame(() => {
+              presetFrameRef.current = null;
+              if (boardRef.current !== board || board.children.length > 0) return;
+              insertPresetScene(board, preset, locale);
+              onChange?.({ presetInitialized: true });
+              // Let Drawnix mount the inserted nodes before asking Plait for
+              // their bounds, then use its native fit behavior to center the
+              // starter diagram in the visible canvas.
+              presetFitFrameRef.current = window.requestAnimationFrame(() => {
+                presetFitFrameRef.current = null;
+                if (boardRef.current === board) {
+                  BoardTransforms.fitViewport(board);
+                }
+              });
+            });
+          }
           scheduleTextAutoSize(board);
+          scheduleExportSnapshot(board);
         }}
         onChange={() => {
           if (boardRef.current) scheduleTextAutoSize(boardRef.current);
         }}
         onValueChange={(plaitValue) => {
+          sceneSignatureRef.current = JSON.stringify(plaitValue);
+          setScene(plaitValue);
           if (boardRef.current) {
             scheduleTextAutoSize(boardRef.current);
+            scheduleExportSnapshot(boardRef.current);
           }
           onChange?.({ version: 2, engine: "drawnix", plaitValue });
         }}
@@ -289,12 +729,63 @@ export default function DrawnixBoardCore({
         }
       />
       {!readOnly && (
-        <LakexShapeCatalog
-          board={board}
-          locale={locale}
-          open={shapeCatalogOpen}
-          onClose={() => setShapeCatalogOpen(false)}
-        />
+        <>
+          <LakexShapeCatalog
+            board={board}
+            locale={locale}
+            open={shapeCatalogOpen}
+            onClose={() => setShapeCatalogOpen(false)}
+          />
+          <LakexMaterialLibrary
+            ref={materialLibraryRef}
+            board={board}
+            locale={locale}
+            dark={isDark}
+            toolbarHost={rootRef.current?.querySelector(
+              ".draw-toolbar .stack_horizontal",
+            ) ?? null}
+            onOpen={() => setShapeCatalogOpen(false)}
+          />
+          <LakexAIBoardAssistant
+            ai={ai}
+            locale={locale}
+            dark={isDark}
+            toolbarHost={rootRef.current?.querySelector(
+              ".draw-toolbar .stack_horizontal",
+            ) ?? null}
+            overlayHost={rootRef.current}
+            onOpen={() => setShapeCatalogOpen(false)}
+            onApply={applyAIGeneratedElements}
+          />
+          <LakexExportMenu
+            board={board}
+            locale={locale}
+            toolbarHost={rootRef.current?.querySelector(
+              ".draw-toolbar .stack_horizontal",
+            ) ?? null}
+          />
+          <LakexBoardContextMenu
+            board={board}
+            locale={locale}
+            dark={isDark}
+            hasContextSelection={contextMenuHasSelection}
+            position={contextMenuPosition}
+            onClose={() => {
+              setContextMenuPosition(null);
+              setContextMenuHasSelection(false);
+            }}
+            onAddText={insertContextText}
+            onAddShape={insertContextShape}
+            onAddLine={insertContextLine}
+            onFitToCanvas={() => {
+              if (boardRef.current) BoardTransforms.fitViewport(boardRef.current);
+            }}
+            onActualSize={setContextActualSize}
+            onAddToMaterialLibrary={() =>
+              materialLibraryRef.current?.addSelectionToLibrary() ?? false
+            }
+          />
+        </>
       )}
     </div>
   );
