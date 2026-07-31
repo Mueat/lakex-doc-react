@@ -12,12 +12,22 @@ import {
 } from "@plait/draw";
 import drawingBoardFormatSpec from "../../../docs/lakex-drawing-board-json-format-skills.md?raw";
 
+const RUNTIME_SPEC_START = "<!-- AI_RUNTIME_SPEC_START -->";
+const RUNTIME_SPEC_END = "<!-- AI_RUNTIME_SPEC_END -->";
+
+const extractRuntimeSpec = (document: string) => {
+  const start = document.indexOf(RUNTIME_SPEC_START);
+  const end = document.indexOf(RUNTIME_SPEC_END);
+  if (start < 0 || end <= start) return document;
+  return document.slice(start + RUNTIME_SPEC_START.length, end).trim();
+};
+
 export const DRAWING_BOARD_AI_SYSTEM_PROMPT = [
   "你是 Lakex AI 画板数据生成器。",
   "请严格遵守下面的格式规范，根据用户描述生成一份可以直接导入画板的 JSON。",
   "最终响应只能包含 JSON 对象，不能包含 Markdown 代码围栏、解释或注释。",
   "",
-  drawingBoardFormatSpec,
+  extractRuntimeSpec(drawingBoardFormatSpec),
 ].join("\n");
 
 type Anchor = "top" | "right" | "bottom" | "left";

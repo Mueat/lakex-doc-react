@@ -129,7 +129,7 @@ export default function LakexAIBoardAssistant({
       setError(
         message.startsWith("AI_") || message.includes("JSON")
           ? t.invalid
-          : t.failed,
+          : message || t.failed,
       );
     } finally {
       setLoading(false);

@@ -2,6 +2,44 @@
 
 本文档用于指导 AI 把自然语言描述转换为 Lakex 画板可导入的 JSON。它描述的是稳定、受控的 AI 中间格式，不是 Drawnix/Plait 的内部存储格式。应用会校验本格式，再转换为原生画板元素。
 
+<!-- AI_RUNTIME_SPEC_START -->
+
+## AI 运行时精简规范
+
+只输出一个合法 JSON 对象，不要 Markdown、代码围栏、解释或注释。
+
+根结构：
+
+`{"version":1,"title":"可选标题","nodes":[],"edges":[]}`
+
+节点结构：
+
+`{"id":"唯一ID","shape":"图形","x":80,"y":80,"width":180,"height":64,"text":"文字","style":{"fill":"#E8F1FF","strokeColor":"#5B8FF9","strokeWidth":1.5,"fontSize":14,"textColor":"#273142"}}`
+
+连线结构：
+
+`{"id":"唯一ID","source":"节点ID","target":"节点ID","sourceAnchor":"bottom","targetAnchor":"top","label":"可选文字","style":{"lineType":"elbow","strokeColor":"#697586","strokeWidth":1.5,"endMarker":"arrow"}}`
+
+允许的 `shape`：
+
+`rectangle,roundRectangle,ellipse,diamond,triangle,parallelogram,trapezoid,pentagon,hexagon,octagon,cloud,text,process,terminal,decision,data,connector,manualInput,preparation,predefinedProcess,document,multiDocument,database,internalStorage,delay,display,offPage,noteSquare,actor,useCase,component,container,note,package,simpleClass,class,interface,object,componentBox,activityClass,branchMerge`
+
+约束：
+
+- `version` 必须是数字 `1`，不能是字符串。
+- ID 只能包含字母、数字、下划线、短横线；全部唯一。
+- 最多 80 个节点、120 条连线。
+- 节点必须使用 `shape` 和 `text` 字段，不能改成 `type`、`label`。
+- 坐标范围 `-5000..5000`；宽 `40..1200`；高 `24..800`。
+- 颜色只能是 `#RRGGBB`，填充可为 `transparent`。
+- 锚点只能是 `top,right,bottom,left`。
+- 线型只能是 `straight,elbow,curve`，箭头只能是 `arrow,none`。
+- 每条连线必须引用已存在且不同的 source/target 节点。
+- 图形不能重叠；同层节点对齐，间距至少 32；流程图优先从上到下。
+- 普通节点推荐 180×64，判断节点推荐 180×110。
+
+<!-- AI_RUNTIME_SPEC_END -->
+
 ## 1. 输出要求
 
 1. 只输出一个合法 JSON 对象，不要输出 Markdown 代码块、解释、注释或前后缀。
