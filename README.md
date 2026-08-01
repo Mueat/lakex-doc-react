@@ -203,19 +203,32 @@ import '@dlient/lakex-doc-react/style.css';
 
 The AI toolbar entry is provider-neutral and does not store model credentials in
 the browser. Connect it to your server with `drawingBoardAI.generate`. Send
-`systemPrompt` as the model system message and `description` as the user
-message; the board validates the returned JSON before creating native
-Drawnix/Plait elements.
+`systemPrompt` as the model system message and `contextPrompt` as the user
+message. The context contains the request history, exactly one latest canvas
+JSON snapshot, and the newest request. The board validates the returned JSON
+before creating native Drawnix/Plait elements.
 
 ```tsx
 <LakexEditor
   config={{
     drawingBoardAI: {
-      generate: async ({ description, systemPrompt, locale }) => {
+      generate: async ({
+        description,
+        systemPrompt,
+        contextPrompt,
+        locale,
+        signal,
+      }) => {
         const response = await fetch('/api/ai/drawing-board', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ description, systemPrompt, locale }),
+          body: JSON.stringify({
+            description,
+            systemPrompt,
+            contextPrompt,
+            locale,
+          }),
+          signal,
         });
         if (!response.ok) throw new Error('AI request failed');
         const result = await response.json();
@@ -225,6 +238,16 @@ Drawnix/Plait elements.
   }}
 />
 ```
+
+Request memory is scoped to each board and updated only after a successful
+generation. Each request serializes the live canvas again, so manual edits are
+included without retaining earlier AI JSON snapshots.
+
+The development EdgeFN proxy uses provider-side SSE by default while still
+returning one complete JSON response to the board. Its total timeout, idle
+timeout, retry count, and output-token limit are configurable with
+`LAKEX_AI_REQUEST_TIMEOUT_MS`, `LAKEX_AI_IDLE_TIMEOUT_MS`,
+`LAKEX_AI_MAX_RETRIES`, and `LAKEX_AI_MAX_TOKENS`.
 
 See [`docs/lakex-drawing-board-json-format-skills.md`](docs/lakex-drawing-board-json-format-skills.md)
 for the model-facing schema.

@@ -549,7 +549,18 @@ export interface DrawingBoardAIRequest {
   description: string;
   /** 完整的画板 JSON 格式规范，可直接作为模型的 system prompt。 */
   systemPrompt: string;
+  /**
+   * 已组合好的本轮用户消息：包含历史需求、当前画布的唯一一份最新
+   * JSON，以及本轮需求。业务侧应优先把它作为 user message 发送。
+   */
+  contextPrompt?: string;
+  /** 当前会话中已经成功生成过的用户需求，不包含 AI JSON。 */
+  history?: readonly string[];
+  /** 发起请求时从画布实时序列化的最新 AI 中间格式。 */
+  currentBoard?: Record<string, unknown>;
   locale: DrawingBoardAILocale;
+  /** 关闭生成弹窗时触发，用于取消业务侧 fetch 请求。 */
+  signal?: AbortSignal;
 }
 
 export type DrawingBoardAIResponse = string | Record<string, unknown>;

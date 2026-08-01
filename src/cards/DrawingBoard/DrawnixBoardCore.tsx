@@ -10,6 +10,7 @@ import {
   addSelectedElement,
   BoardTransforms,
   clearSelectedElement,
+  getBoundingRectangleByElements,
   getHitElementByPoint,
   getViewportOrigination,
   getSelectedElements,
@@ -66,6 +67,101 @@ import "./DrawnixBoardCore.css";
 
 type Locale = "zh-CN" | "en-US";
 type BoardTheme = "light" | "dark" | "system";
+
+interface BoardElementWithPoints extends PlaitElement {
+  points?: [number, number][];
+  children?: BoardElementWithPoints[];
+}
+
+interface BoardElementsBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const getPointBounds = (
+  elements: PlaitElement[],
+): BoardElementsBounds | null => {
+  const points: [number, number][] = [];
+  const collect = (element: BoardElementWithPoints) => {
+    element.points?.forEach((point) => {
+      if (Number.isFinite(point[0]) && Number.isFinite(point[1])) {
+        points.push(point);
+      }
+    });
+    element.children?.forEach(collect);
+  };
+  elements.forEach((element) => collect(element as BoardElementWithPoints));
+  if (!points.length) return null;
+  const xs = points.map((point) => point[0]);
+  const ys = points.map((point) => point[1]);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+};
+
+const translateBoardElement = (
+  element: PlaitElement,
+  deltaX: number,
+  deltaY: number,
+): PlaitElement => {
+  const source = element as BoardElementWithPoints;
+  const translated = { ...source };
+  if (source.points) {
+    translated.points = source.points.map(
+      ([x, y]) => [x + deltaX, y + deltaY] as [number, number],
+    );
+  }
+  if (source.children) {
+    translated.children = source.children.map(
+      (child) =>
+        translateBoardElement(child, deltaX, deltaY) as BoardElementWithPoints,
+    );
+  }
+  return translated;
+};
+
+const placeElementsBesideCurrentBoard = (
+  board: PlaitBoard,
+  elements: PlaitElement[],
+) => {
+  if (!board.children.length) return elements;
+  const generatedBounds = getPointBounds(elements);
+  if (!generatedBounds) return elements;
+
+  let currentBounds: BoardElementsBounds | null = null;
+  try {
+    currentBounds = getBoundingRectangleByElements(
+      board,
+      board.children,
+      true,
+    );
+  } catch {
+    currentBounds = getPointBounds(board.children);
+  }
+  if (!currentBounds || (!currentBounds.width && !currentBounds.height)) {
+    return elements;
+  }
+
+  const gap = 120;
+  const deltaX =
+    currentBounds.x + currentBounds.width + gap - generatedBounds.x;
+  const deltaY =
+    currentBounds.y +
+    currentBounds.height / 2 -
+    (generatedBounds.y + generatedBounds.height / 2);
+  return elements.map((element) =>
+    translateBoardElement(element, deltaX, deltaY),
+  );
+};
 
 const insertArrow = (
   board: PlaitBoard,
@@ -303,10 +399,15 @@ export default function DrawnixBoardCore({
   const exportSnapshotVersionRef = React.useRef(0);
   const presetFrameRef = React.useRef<number | null>(null);
   const presetFitFrameRef = React.useRef<number | null>(null);
-  const textEnterViewportRef = React.useRef<{
+  const textViewportGuardCleanupRef = React.useRef<(() => void) | null>(null);
+  const textEditViewportRef = React.useRef<{
     board: PlaitBoard;
     origination: [number, number];
     zoom: number;
+    host: SVGSVGElement;
+    hostViewBox: string | null;
+    hostWidth: string;
+    hostHeight: string;
     viewportContainer: HTMLElement | null;
     scrollLeft: number;
     scrollTop: number;
@@ -315,6 +416,13 @@ export default function DrawnixBoardCore({
   const isDark = theme === "dark" || (theme === "system" && systemDark);
   const themeColorMode = isDark ? ThemeColorMode.dark : ThemeColorMode.default;
   const language = locale === "zh-CN" ? "zh" : "en";
+  React.useEffect(
+    () => () => {
+      textViewportGuardCleanupRef.current?.();
+      textViewportGuardCleanupRef.current = null;
+    },
+    [],
+  );
   React.useEffect(() => {
     if (boardRef.current) {
       BoardTransforms.updateThemeColor(boardRef.current, themeColorMode);
@@ -686,6 +794,10 @@ export default function DrawnixBoardCore({
     (elements: PlaitElement[], mode: AIBoardApplyMode) => {
       const targetBoard = boardRef.current;
       if (!targetBoard || !elements.length) return;
+      const positionedElements =
+        mode === "append"
+          ? placeElementsBesideCurrentBoard(targetBoard, elements)
+          : elements;
       clearSelectedElement(targetBoard);
       PlaitHistoryBoard.withNewBatch(targetBoard, () => {
         if (mode === "replace") {
@@ -693,7 +805,7 @@ export default function DrawnixBoardCore({
             Transforms.removeNode(targetBoard, [index]);
           }
         }
-        elements.forEach((element) => {
+        positionedElements.forEach((element) => {
           Transforms.insertNode(targetBoard, element, [
             targetBoard.children.length,
           ]);
@@ -763,7 +875,13 @@ export default function DrawnixBoardCore({
         setContextMenuPosition({ x: event.clientX, y: event.clientY });
       }}
       onKeyDownCapture={(event) => {
-        if (event.key !== "Enter") return;
+        if (
+          event.key !== "Enter" &&
+          event.key !== "Backspace" &&
+          event.key !== "Delete"
+        ) {
+          return;
+        }
         const target = event.target as Element | null;
         if (!target?.closest(".slate-editable-container")) return;
         const targetBoard = boardRef.current;
@@ -772,13 +890,18 @@ export default function DrawnixBoardCore({
           (targetBoard ? getViewportOrigination(targetBoard) : null);
         if (targetBoard && origination) {
           const boardContainer = PlaitBoard.getBoardContainer(targetBoard);
+          const host = PlaitBoard.getHost(targetBoard);
           const viewportContainer = boardContainer.matches(".viewport-container")
             ? boardContainer
             : boardContainer.querySelector<HTMLElement>(".viewport-container");
-          textEnterViewportRef.current = {
+          textEditViewportRef.current = {
             board: targetBoard,
             origination: [...origination] as [number, number],
             zoom: targetBoard.viewport.zoom,
+            host,
+            hostViewBox: host.getAttribute("viewBox"),
+            hostWidth: host.style.width,
+            hostHeight: host.style.height,
             viewportContainer,
             scrollLeft: viewportContainer?.scrollLeft ?? 0,
             scrollTop: viewportContainer?.scrollTop ?? 0,
@@ -799,51 +922,142 @@ export default function DrawnixBoardCore({
           // Slate handles the deletion at the editing target. Stop afterward
           // so Lakex's ancestor card shortcut cannot delete the whole board.
           event.stopPropagation();
-          return;
         }
-        if (event.key === "Enter" && isTextEditingTarget) {
+        const changesTextLayout =
+          event.key === "Enter" ||
+          event.key === "Backspace" ||
+          event.key === "Delete";
+        if (changesTextLayout && isTextEditingTarget) {
           // The editable target has already processed the key before this
           // ancestor handler runs. Keep the same native event away from both
           // Drawnix's global hotkeys and Lakex's outer editor; otherwise the
           // host may insert a block and shift the entire drawing card.
-          event.stopPropagation();
-          event.nativeEvent.stopImmediatePropagation();
-          const viewportBeforeEnter = textEnterViewportRef.current;
-          textEnterViewportRef.current = null;
+          if (event.key === "Enter") {
+            event.stopPropagation();
+            event.nativeEvent.stopImmediatePropagation();
+          }
+          const viewportBeforeTextEdit = textEditViewportRef.current;
+          textEditViewportRef.current = null;
           if (
-            viewportBeforeEnter &&
+            viewportBeforeTextEdit &&
             typeof window !== "undefined"
           ) {
+            textViewportGuardCleanupRef.current?.();
             const restoreViewport = () => {
-              if (boardRef.current !== viewportBeforeEnter.board) return;
-              BoardTransforms.updateViewport(
-                viewportBeforeEnter.board,
-                viewportBeforeEnter.origination,
-                viewportBeforeEnter.zoom,
-              );
-              if (viewportBeforeEnter.viewportContainer) {
-                viewportBeforeEnter.viewportContainer.scrollLeft =
-                  viewportBeforeEnter.scrollLeft;
-                viewportBeforeEnter.viewportContainer.scrollTop =
-                  viewportBeforeEnter.scrollTop;
+              if (boardRef.current !== viewportBeforeTextEdit.board) return;
+              const currentOrigination =
+                viewportBeforeTextEdit.board.viewport.origination ??
+                getViewportOrigination(viewportBeforeTextEdit.board);
+              const viewportChanged =
+                !currentOrigination ||
+                Math.abs(
+                  currentOrigination[0] - viewportBeforeTextEdit.origination[0],
+                ) > 0.01 ||
+                Math.abs(
+                  currentOrigination[1] - viewportBeforeTextEdit.origination[1],
+                ) > 0.01 ||
+                Math.abs(
+                  viewportBeforeTextEdit.board.viewport.zoom -
+                    viewportBeforeTextEdit.zoom,
+                ) > 0.001;
+              if (viewportChanged) {
+                BoardTransforms.updateViewport(
+                  viewportBeforeTextEdit.board,
+                  viewportBeforeTextEdit.origination,
+                  viewportBeforeTextEdit.zoom,
+                );
+              }
+
+              // Text measurement may resize the SVG viewBox when another
+              // element sits below the edited text. Lock the visual host for
+              // this text commit so Enter or line deletion cannot produce a
+              // one-frame zoom/position flash.
+              const { host } = viewportBeforeTextEdit;
+              if (viewportBeforeTextEdit.hostViewBox === null) {
+                if (host.hasAttribute("viewBox")) host.removeAttribute("viewBox");
+              } else if (
+                host.getAttribute("viewBox") !==
+                viewportBeforeTextEdit.hostViewBox
+              ) {
+                host.setAttribute("viewBox", viewportBeforeTextEdit.hostViewBox);
+              }
+              if (host.style.width !== viewportBeforeTextEdit.hostWidth) {
+                host.style.width = viewportBeforeTextEdit.hostWidth;
+              }
+              if (host.style.height !== viewportBeforeTextEdit.hostHeight) {
+                host.style.height = viewportBeforeTextEdit.hostHeight;
+              }
+              if (viewportBeforeTextEdit.viewportContainer) {
+                if (
+                  Math.abs(
+                    viewportBeforeTextEdit.viewportContainer.scrollLeft -
+                      viewportBeforeTextEdit.scrollLeft,
+                  ) > 0.5
+                ) {
+                  viewportBeforeTextEdit.viewportContainer.scrollLeft =
+                    viewportBeforeTextEdit.scrollLeft;
+                }
+                if (
+                  Math.abs(
+                    viewportBeforeTextEdit.viewportContainer.scrollTop -
+                      viewportBeforeTextEdit.scrollTop,
+                  ) > 0.5
+                ) {
+                  viewportBeforeTextEdit.viewportContainer.scrollTop =
+                    viewportBeforeTextEdit.scrollTop;
+                }
               }
             };
-            // Drawnix measures the changed foreignObject in a passive update.
-            // Restore after that measurement so Enter changes only the text
-            // and never recenters every existing element.
-            window.requestAnimationFrame(() => {
-              window.requestAnimationFrame(() => {
-                restoreViewport();
-              });
+            const observer = new MutationObserver(restoreViewport);
+            observer.observe(viewportBeforeTextEdit.host, {
+              attributes: true,
+              attributeFilter: ["viewBox", "style"],
             });
-            // Text foreignObjects can trigger one more ResizeObserver pass
-            // after React's passive effects. Reapply once after that pass.
-            window.setTimeout(restoreViewport, 160);
+            // Slate commits during this event. A microtask and the next
+            // animation frames cover both its synchronous render and Plait's
+            // delayed text/foreignObject measurement. Deleting a line can
+            // update the scroll container after the SVG attributes settle,
+            // so keep the viewport stable for the whole short commit window.
+            window.queueMicrotask(restoreViewport);
+            let active = true;
+            let frameId: number | null = null;
+            let timeoutId: number | null = null;
+            const guardFrame = () => {
+              if (!active) return;
+              restoreViewport();
+              frameId = window.requestAnimationFrame(guardFrame);
+            };
+            frameId = window.requestAnimationFrame(guardFrame);
+            const cleanup = () => {
+              if (!active) return;
+              active = false;
+              observer.disconnect();
+              if (frameId !== null) {
+                window.cancelAnimationFrame(frameId);
+              }
+              if (timeoutId !== null) {
+                window.clearTimeout(timeoutId);
+              }
+            };
+            timeoutId = window.setTimeout(() => {
+              restoreViewport();
+              cleanup();
+              if (textViewportGuardCleanupRef.current === cleanup) {
+                textViewportGuardCleanupRef.current = null;
+              }
+            }, 360);
+            textViewportGuardCleanupRef.current = cleanup;
           }
         }
       }}
       onKeyUp={(event) => {
-        if (event.key !== "Enter") return;
+        if (
+          event.key !== "Enter" &&
+          event.key !== "Backspace" &&
+          event.key !== "Delete"
+        ) {
+          return;
+        }
         const target = event.target as Element | null;
         const editingTarget = target?.closest(
           '.slate-editable-container, input, textarea, select',
@@ -939,6 +1153,7 @@ export default function DrawnixBoardCore({
           />
           <LakexAIBoardAssistant
             ai={ai}
+            board={board}
             locale={locale}
             dark={isDark}
             toolbarHost={rootRef.current?.querySelector(
