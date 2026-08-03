@@ -11,3 +11,5 @@ examples/dist-examples/
 test/
 .git
 yarn.lock
+.env.local
+.env.*.local

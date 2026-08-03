@@ -10,6 +10,7 @@ import {
   addSelectedElement,
   BoardTransforms,
   clearSelectedElement,
+  getBoundingRectangleByElements,
   getHitElementByPoint,
   getViewportOrigination,
   getSelectedElements,
@@ -22,6 +23,7 @@ import {
   type Viewport,
 } from "@plait/core";
 import {
+  Alignment,
   BoardCreationMode,
   buildText,
   getTextEditorsByElement,
@@ -33,10 +35,10 @@ import {
   ArrowLineShape,
   BasicShapes,
   createArrowLineElement,
-  createTextElement,
+  createDefaultGeometry,
   DrawTransforms,
   FlowchartSymbols,
-  getTextShapeProperty,
+  type PlaitShapeElement,
   UMLSymbols,
 } from "@plait/draw";
 import {
@@ -66,12 +68,164 @@ import "./DrawnixBoardCore.css";
 type Locale = "zh-CN" | "en-US";
 type BoardTheme = "light" | "dark" | "system";
 
-const insertArrow = (board: PlaitBoard, start: [number, number], end: [number, number]) => {
+interface BoardElementWithPoints extends PlaitElement {
+  points?: [number, number][];
+  children?: BoardElementWithPoints[];
+}
+
+interface BoardElementsBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const getPointBounds = (
+  elements: PlaitElement[],
+): BoardElementsBounds | null => {
+  const points: [number, number][] = [];
+  const collect = (element: BoardElementWithPoints) => {
+    element.points?.forEach((point) => {
+      if (Number.isFinite(point[0]) && Number.isFinite(point[1])) {
+        points.push(point);
+      }
+    });
+    element.children?.forEach(collect);
+  };
+  elements.forEach((element) => collect(element as BoardElementWithPoints));
+  if (!points.length) return null;
+  const xs = points.map((point) => point[0]);
+  const ys = points.map((point) => point[1]);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+};
+
+const translateBoardElement = (
+  element: PlaitElement,
+  deltaX: number,
+  deltaY: number,
+): PlaitElement => {
+  const source = element as BoardElementWithPoints;
+  const translated = { ...source };
+  if (source.points) {
+    translated.points = source.points.map(
+      ([x, y]) => [x + deltaX, y + deltaY] as [number, number],
+    );
+  }
+  if (source.children) {
+    translated.children = source.children.map(
+      (child) =>
+        translateBoardElement(child, deltaX, deltaY) as BoardElementWithPoints,
+    );
+  }
+  return translated;
+};
+
+const placeElementsBesideCurrentBoard = (
+  board: PlaitBoard,
+  elements: PlaitElement[],
+) => {
+  if (!board.children.length) return elements;
+  const generatedBounds = getPointBounds(elements);
+  if (!generatedBounds) return elements;
+
+  let currentBounds: BoardElementsBounds | null = null;
+  try {
+    currentBounds = getBoundingRectangleByElements(
+      board,
+      board.children,
+      true,
+    );
+  } catch {
+    currentBounds = getPointBounds(board.children);
+  }
+  if (!currentBounds || (!currentBounds.width && !currentBounds.height)) {
+    return elements;
+  }
+
+  const gap = 120;
+  const deltaX =
+    currentBounds.x + currentBounds.width + gap - generatedBounds.x;
+  const deltaY =
+    currentBounds.y +
+    currentBounds.height / 2 -
+    (generatedBounds.y + generatedBounds.height / 2);
+  return elements.map((element) =>
+    translateBoardElement(element, deltaX, deltaY),
+  );
+};
+
+const insertArrow = (
+  board: PlaitBoard,
+  start: [number, number],
+  end: [number, number],
+) => {
   const arrow = createArrowLineElement(
     ArrowLineShape.straight,
     [start, end],
     { marker: ArrowLineMarkerType.none },
     { marker: ArrowLineMarkerType.arrow },
+  );
+  Transforms.insertNode(board, arrow, [board.children.length]);
+};
+
+type PresetAnchor = "top" | "right" | "bottom" | "left";
+
+const PRESET_CONNECTIONS: Record<PresetAnchor, [number, number]> = {
+  top: [0.5, 0],
+  right: [1, 0.5],
+  bottom: [0.5, 1],
+  left: [0, 0.5],
+};
+
+const getPresetAnchorPoint = (
+  element: PlaitShapeElement,
+  anchor: PresetAnchor,
+): [number, number] => {
+  const [start, end] = element.points;
+  switch (anchor) {
+    case "top":
+      return [(start[0] + end[0]) / 2, start[1]];
+    case "right":
+      return [end[0], (start[1] + end[1]) / 2];
+    case "bottom":
+      return [(start[0] + end[0]) / 2, end[1]];
+    case "left":
+      return [start[0], (start[1] + end[1]) / 2];
+  }
+};
+
+const insertBoundArrow = (
+  board: PlaitBoard,
+  source: PlaitShapeElement,
+  target: PlaitShapeElement,
+  sourceAnchor: PresetAnchor,
+  targetAnchor: PresetAnchor,
+) => {
+  const arrow = createArrowLineElement(
+    ArrowLineShape.straight,
+    [
+      getPresetAnchorPoint(source, sourceAnchor),
+      getPresetAnchorPoint(target, targetAnchor),
+    ],
+    {
+      boundId: source.id,
+      connection: PRESET_CONNECTIONS[sourceAnchor],
+      marker: ArrowLineMarkerType.none,
+    },
+    {
+      boundId: target.id,
+      connection: PRESET_CONNECTIONS[targetAnchor],
+      marker: ArrowLineMarkerType.arrow,
+    },
   );
   Transforms.insertNode(board, arrow, [board.children.length]);
 };
@@ -86,21 +240,34 @@ const scalePresetPoint = (
   origin[1] + (point[1] - origin[1]) * PRESET_SCALE,
 ];
 
-const PRESET_LABEL_FONT_SIZE = "12";
-const PRESET_LABEL_MIN_WIDTH = 56;
-const PRESET_LABEL_MIN_HEIGHT = 20;
-
-const insertLabel = (board: PlaitBoard, point: [number, number], text: string) => {
-  const label = buildText(text, undefined, { "font-size": PRESET_LABEL_FONT_SIZE });
-  const textSize = getTextShapeProperty(board, label, PRESET_LABEL_FONT_SIZE);
-  const width = Math.max(textSize.width, PRESET_LABEL_MIN_WIDTH);
-  const height = Math.max(textSize.height, PRESET_LABEL_MIN_HEIGHT);
-  const element = createTextElement(
+const insertPresetGeometry = (
+  board: PlaitBoard,
+  points: [[number, number], [number, number]],
+  shape: FlowchartSymbols | UMLSymbols,
+  text: string,
+) => {
+  const element = createDefaultGeometry(
     board,
-    [point, [point[0] + width, point[1] + height]],
-    label,
-  );
-  Transforms.insertNode(board, element, [board.children.length]);
+    points,
+    shape,
+  ) as PlaitShapeElement;
+  const label = buildText(text, Alignment.center, { "font-size": "12" });
+  let labeledElement: PlaitShapeElement;
+  if ("cells" in element && Array.isArray(element.cells) && element.cells[0]) {
+    const cells = element.cells.map((cell, index) =>
+      index === 0 ? { ...cell, text: label } : cell,
+    );
+    labeledElement = { ...element, cells } as PlaitShapeElement;
+  } else if ("texts" in element && Array.isArray(element.texts)) {
+    const texts = element.texts.map((item, index) =>
+      index === 0 ? { ...item, text: label } : item,
+    );
+    labeledElement = { ...element, texts } as PlaitShapeElement;
+  } else {
+    labeledElement = { ...element, text: label } as PlaitShapeElement;
+  }
+  Transforms.insertNode(board, labeledElement, [board.children.length]);
+  return labeledElement;
 };
 
 const insertPresetScene = (
@@ -111,30 +278,58 @@ const insertPresetScene = (
   const zh = locale === "zh-CN";
   if (preset === "flowchart") {
     const point = (value: [number, number]) => scalePresetPoint(value, [540, 370]);
-    DrawTransforms.insertGeometry(board, [point([460, 120]), point([620, 180])], FlowchartSymbols.terminal);
-    DrawTransforms.insertGeometry(board, [point([460, 250]), point([620, 320])], FlowchartSymbols.process);
-    DrawTransforms.insertGeometry(board, [point([460, 390]), point([620, 490])], FlowchartSymbols.decision);
-    DrawTransforms.insertGeometry(board, [point([460, 560]), point([620, 620])], FlowchartSymbols.terminal);
-    insertLabel(board, point([515, 142]), zh ? "开始" : "Start");
-    insertLabel(board, point([500, 272]), zh ? "处理" : "Process");
-    insertLabel(board, point([515, 425]), zh ? "判断" : "Decision");
-    insertLabel(board, point([515, 580]), zh ? "结束" : "End");
-    insertArrow(board, point([540, 180]), point([540, 250]));
-    insertArrow(board, point([540, 320]), point([540, 390]));
-    insertArrow(board, point([540, 490]), point([540, 560]));
+    const start = insertPresetGeometry(
+      board,
+      [point([460, 120]), point([620, 180])],
+      FlowchartSymbols.terminal,
+      zh ? "开始" : "Start",
+    );
+    const process = insertPresetGeometry(
+      board,
+      [point([460, 250]), point([620, 320])],
+      FlowchartSymbols.process,
+      zh ? "处理" : "Process",
+    );
+    const decision = insertPresetGeometry(
+      board,
+      [point([460, 390]), point([620, 490])],
+      FlowchartSymbols.decision,
+      zh ? "判断" : "Decision",
+    );
+    const end = insertPresetGeometry(
+      board,
+      [point([460, 560]), point([620, 620])],
+      FlowchartSymbols.terminal,
+      zh ? "结束" : "End",
+    );
+    insertBoundArrow(board, start, process, "bottom", "top");
+    insertBoundArrow(board, process, decision, "bottom", "top");
+    insertBoundArrow(board, decision, end, "bottom", "top");
     return;
   }
 
   if (preset === "uml") {
     const point = (value: [number, number]) => scalePresetPoint(value, [625, 315]);
-    DrawTransforms.insertGeometry(board, [point([230, 245]), point([350, 365])], UMLSymbols.actor);
-    DrawTransforms.insertGeometry(board, [point([470, 260]), point([670, 350])], UMLSymbols.useCase);
-    DrawTransforms.insertGeometry(board, [point([790, 205]), point([1020, 405])], UMLSymbols.class);
-    insertLabel(board, point([260, 385]), zh ? "用户" : "User");
-    insertLabel(board, point([525, 292]), zh ? "提交申请" : "Submit request");
-    insertLabel(board, point([850, 425]), zh ? "申请服务" : "Request service");
-    insertArrow(board, point([350, 305]), point([470, 305]));
-    insertArrow(board, point([670, 305]), point([790, 305]));
+    const actor = insertPresetGeometry(
+      board,
+      [point([230, 245]), point([350, 365])],
+      UMLSymbols.actor,
+      zh ? "用户" : "User",
+    );
+    const useCase = insertPresetGeometry(
+      board,
+      [point([470, 260]), point([670, 350])],
+      UMLSymbols.useCase,
+      zh ? "提交申请" : "Submit request",
+    );
+    const service = insertPresetGeometry(
+      board,
+      [point([790, 205]), point([1020, 405])],
+      UMLSymbols.class,
+      zh ? "申请服务" : "Request service",
+    );
+    insertBoundArrow(board, actor, useCase, "right", "left");
+    insertBoundArrow(board, useCase, service, "right", "left");
     return;
   }
 
@@ -204,10 +399,30 @@ export default function DrawnixBoardCore({
   const exportSnapshotVersionRef = React.useRef(0);
   const presetFrameRef = React.useRef<number | null>(null);
   const presetFitFrameRef = React.useRef<number | null>(null);
+  const textViewportGuardCleanupRef = React.useRef<(() => void) | null>(null);
+  const textEditViewportRef = React.useRef<{
+    board: PlaitBoard;
+    origination: [number, number];
+    zoom: number;
+    host: SVGSVGElement;
+    hostViewBox: string | null;
+    hostWidth: string;
+    hostHeight: string;
+    viewportContainer: HTMLElement | null;
+    scrollLeft: number;
+    scrollTop: number;
+  } | null>(null);
   const systemDark = useSystemDark(theme === "system");
   const isDark = theme === "dark" || (theme === "system" && systemDark);
   const themeColorMode = isDark ? ThemeColorMode.dark : ThemeColorMode.default;
   const language = locale === "zh-CN" ? "zh" : "en";
+  React.useEffect(
+    () => () => {
+      textViewportGuardCleanupRef.current?.();
+      textViewportGuardCleanupRef.current = null;
+    },
+    [],
+  );
   React.useEffect(() => {
     if (boardRef.current) {
       BoardTransforms.updateThemeColor(boardRef.current, themeColorMode);
@@ -305,13 +520,19 @@ export default function DrawnixBoardCore({
   const incomingSceneSignature = JSON.stringify(incomingScene);
   const [scene, setScene] = React.useState<PlaitElement[]>(incomingScene);
   const sceneSignatureRef = React.useRef(incomingSceneSignature);
+  const emittedSceneSignaturesRef = React.useRef<Set<string>>(new Set());
   const viewport = value?.plaitViewport as Viewport | undefined;
 
   // Lakex persists each board operation back into the card. Keep the board's
-  // own array reference for that round trip: feeding a cloned-but-identical
-  // value back to Drawnix makes its wrapper fit the viewport again.
+  // own array reference for that round trip. Slate text editing may emit
+  // several values in one keypress and the host can return those snapshots
+  // out of order; feeding any of those internal clones back to Drawnix makes
+  // its wrapper fit the viewport and visibly shifts the whole diagram.
   React.useEffect(() => {
     if (incomingSceneSignature === sceneSignatureRef.current) return;
+    if (emittedSceneSignaturesRef.current.delete(incomingSceneSignature)) {
+      return;
+    }
     sceneSignatureRef.current = incomingSceneSignature;
     setScene(incomingScene);
   }, [incomingScene, incomingSceneSignature]);
@@ -573,6 +794,10 @@ export default function DrawnixBoardCore({
     (elements: PlaitElement[], mode: AIBoardApplyMode) => {
       const targetBoard = boardRef.current;
       if (!targetBoard || !elements.length) return;
+      const positionedElements =
+        mode === "append"
+          ? placeElementsBesideCurrentBoard(targetBoard, elements)
+          : elements;
       clearSelectedElement(targetBoard);
       PlaitHistoryBoard.withNewBatch(targetBoard, () => {
         if (mode === "replace") {
@@ -580,7 +805,7 @@ export default function DrawnixBoardCore({
             Transforms.removeNode(targetBoard, [index]);
           }
         }
-        elements.forEach((element) => {
+        positionedElements.forEach((element) => {
           Transforms.insertNode(targetBoard, element, [
             targetBoard.children.length,
           ]);
@@ -649,11 +874,47 @@ export default function DrawnixBoardCore({
         setShapeCatalogOpen(false);
         setContextMenuPosition({ x: event.clientX, y: event.clientY });
       }}
+      onKeyDownCapture={(event) => {
+        if (
+          event.key !== "Enter" &&
+          event.key !== "Backspace" &&
+          event.key !== "Delete"
+        ) {
+          return;
+        }
+        const target = event.target as Element | null;
+        if (!target?.closest(".slate-editable-container")) return;
+        const targetBoard = boardRef.current;
+        const origination =
+          targetBoard?.viewport.origination ??
+          (targetBoard ? getViewportOrigination(targetBoard) : null);
+        if (targetBoard && origination) {
+          const boardContainer = PlaitBoard.getBoardContainer(targetBoard);
+          const host = PlaitBoard.getHost(targetBoard);
+          const viewportContainer = boardContainer.matches(".viewport-container")
+            ? boardContainer
+            : boardContainer.querySelector<HTMLElement>(".viewport-container");
+          textEditViewportRef.current = {
+            board: targetBoard,
+            origination: [...origination] as [number, number],
+            zoom: targetBoard.viewport.zoom,
+            host,
+            hostViewBox: host.getAttribute("viewBox"),
+            hostWidth: host.style.width,
+            hostHeight: host.style.height,
+            viewportContainer,
+            scrollLeft: viewportContainer?.scrollLeft ?? 0,
+            scrollTop: viewportContainer?.scrollTop ?? 0,
+          };
+        }
+      }}
       onKeyDown={(event) => {
         const target = event.target as Element | null;
-        const isTextEditingTarget = !!target?.closest(
-          '[contenteditable="true"], input, textarea, select',
+        const editingTarget = target?.closest(
+          '.slate-editable-container, input, textarea, select',
         );
+        const isTextEditingTarget =
+          !!editingTarget && !!rootRef.current?.contains(editingTarget);
         if (
           (event.key === "Delete" || event.key === "Backspace") &&
           isTextEditingTarget
@@ -661,12 +922,149 @@ export default function DrawnixBoardCore({
           // Slate handles the deletion at the editing target. Stop afterward
           // so Lakex's ancestor card shortcut cannot delete the whole board.
           event.stopPropagation();
+        }
+        const changesTextLayout =
+          event.key === "Enter" ||
+          event.key === "Backspace" ||
+          event.key === "Delete";
+        if (changesTextLayout && isTextEditingTarget) {
+          // The editable target has already processed the key before this
+          // ancestor handler runs. Keep the same native event away from both
+          // Drawnix's global hotkeys and Lakex's outer editor; otherwise the
+          // host may insert a block and shift the entire drawing card.
+          if (event.key === "Enter") {
+            event.stopPropagation();
+            event.nativeEvent.stopImmediatePropagation();
+          }
+          const viewportBeforeTextEdit = textEditViewportRef.current;
+          textEditViewportRef.current = null;
+          if (
+            viewportBeforeTextEdit &&
+            typeof window !== "undefined"
+          ) {
+            textViewportGuardCleanupRef.current?.();
+            const restoreViewport = () => {
+              if (boardRef.current !== viewportBeforeTextEdit.board) return;
+              const currentOrigination =
+                viewportBeforeTextEdit.board.viewport.origination ??
+                getViewportOrigination(viewportBeforeTextEdit.board);
+              const viewportChanged =
+                !currentOrigination ||
+                Math.abs(
+                  currentOrigination[0] - viewportBeforeTextEdit.origination[0],
+                ) > 0.01 ||
+                Math.abs(
+                  currentOrigination[1] - viewportBeforeTextEdit.origination[1],
+                ) > 0.01 ||
+                Math.abs(
+                  viewportBeforeTextEdit.board.viewport.zoom -
+                    viewportBeforeTextEdit.zoom,
+                ) > 0.001;
+              if (viewportChanged) {
+                BoardTransforms.updateViewport(
+                  viewportBeforeTextEdit.board,
+                  viewportBeforeTextEdit.origination,
+                  viewportBeforeTextEdit.zoom,
+                );
+              }
+
+              // Text measurement may resize the SVG viewBox when another
+              // element sits below the edited text. Lock the visual host for
+              // this text commit so Enter or line deletion cannot produce a
+              // one-frame zoom/position flash.
+              const { host } = viewportBeforeTextEdit;
+              if (viewportBeforeTextEdit.hostViewBox === null) {
+                if (host.hasAttribute("viewBox")) host.removeAttribute("viewBox");
+              } else if (
+                host.getAttribute("viewBox") !==
+                viewportBeforeTextEdit.hostViewBox
+              ) {
+                host.setAttribute("viewBox", viewportBeforeTextEdit.hostViewBox);
+              }
+              if (host.style.width !== viewportBeforeTextEdit.hostWidth) {
+                host.style.width = viewportBeforeTextEdit.hostWidth;
+              }
+              if (host.style.height !== viewportBeforeTextEdit.hostHeight) {
+                host.style.height = viewportBeforeTextEdit.hostHeight;
+              }
+              if (viewportBeforeTextEdit.viewportContainer) {
+                if (
+                  Math.abs(
+                    viewportBeforeTextEdit.viewportContainer.scrollLeft -
+                      viewportBeforeTextEdit.scrollLeft,
+                  ) > 0.5
+                ) {
+                  viewportBeforeTextEdit.viewportContainer.scrollLeft =
+                    viewportBeforeTextEdit.scrollLeft;
+                }
+                if (
+                  Math.abs(
+                    viewportBeforeTextEdit.viewportContainer.scrollTop -
+                      viewportBeforeTextEdit.scrollTop,
+                  ) > 0.5
+                ) {
+                  viewportBeforeTextEdit.viewportContainer.scrollTop =
+                    viewportBeforeTextEdit.scrollTop;
+                }
+              }
+            };
+            const observer = new MutationObserver(restoreViewport);
+            observer.observe(viewportBeforeTextEdit.host, {
+              attributes: true,
+              attributeFilter: ["viewBox", "style"],
+            });
+            // Slate commits during this event. A microtask and the next
+            // animation frames cover both its synchronous render and Plait's
+            // delayed text/foreignObject measurement. Deleting a line can
+            // update the scroll container after the SVG attributes settle,
+            // so keep the viewport stable for the whole short commit window.
+            window.queueMicrotask(restoreViewport);
+            let active = true;
+            let frameId: number | null = null;
+            let timeoutId: number | null = null;
+            const guardFrame = () => {
+              if (!active) return;
+              restoreViewport();
+              frameId = window.requestAnimationFrame(guardFrame);
+            };
+            frameId = window.requestAnimationFrame(guardFrame);
+            const cleanup = () => {
+              if (!active) return;
+              active = false;
+              observer.disconnect();
+              if (frameId !== null) {
+                window.cancelAnimationFrame(frameId);
+              }
+              if (timeoutId !== null) {
+                window.clearTimeout(timeoutId);
+              }
+            };
+            timeoutId = window.setTimeout(() => {
+              restoreViewport();
+              cleanup();
+              if (textViewportGuardCleanupRef.current === cleanup) {
+                textViewportGuardCleanupRef.current = null;
+              }
+            }, 360);
+            textViewportGuardCleanupRef.current = cleanup;
+          }
+        }
+      }}
+      onKeyUp={(event) => {
+        if (
+          event.key !== "Enter" &&
+          event.key !== "Backspace" &&
+          event.key !== "Delete"
+        ) {
           return;
         }
-        if (event.key === "Enter" && isTextEditingTarget) {
-          // Let Slate process Enter at its target, but keep the event from
-          // reaching Drawnix's document-level board hotkey afterwards.
+        const target = event.target as Element | null;
+        const editingTarget = target?.closest(
+          '.slate-editable-container, input, textarea, select',
+        );
+        if (editingTarget && rootRef.current?.contains(editingTarget)) {
           event.stopPropagation();
+          event.nativeEvent.stopImmediatePropagation();
         }
       }}
     >
@@ -716,7 +1114,14 @@ export default function DrawnixBoardCore({
           if (boardRef.current) scheduleTextAutoSize(boardRef.current);
         }}
         onValueChange={(plaitValue) => {
-          sceneSignatureRef.current = JSON.stringify(plaitValue);
+          const signature = JSON.stringify(plaitValue);
+          sceneSignatureRef.current = signature;
+          const emitted = emittedSceneSignaturesRef.current;
+          emitted.add(signature);
+          if (emitted.size > 50) {
+            const oldest = emitted.values().next().value;
+            if (oldest) emitted.delete(oldest);
+          }
           setScene(plaitValue);
           if (boardRef.current) {
             scheduleTextAutoSize(boardRef.current);
@@ -748,6 +1153,7 @@ export default function DrawnixBoardCore({
           />
           <LakexAIBoardAssistant
             ai={ai}
+            board={board}
             locale={locale}
             dark={isDark}
             toolbarHost={rootRef.current?.querySelector(

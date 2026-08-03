@@ -14,11 +14,11 @@
 
 节点结构：
 
-`{"id":"唯一ID","shape":"图形","x":80,"y":80,"width":180,"height":64,"text":"文字","style":{"fill":"#E8F1FF","strokeColor":"#5B8FF9","strokeWidth":1.5,"fontSize":14,"textColor":"#273142"}}`
+`{"id":"唯一ID","shape":"图形","x":80,"y":80,"width":180,"height":64,"text":"文字","style":{"fill":"#E8F1FF","strokeColor":"#5B8FF9","strokeWidth":1.5,"strokeStyle":"solid","fontSize":14,"textColor":"#273142"}}`
 
 连线结构：
 
-`{"id":"唯一ID","source":"节点ID","target":"节点ID","sourceAnchor":"bottom","targetAnchor":"top","label":"可选文字","style":{"lineType":"elbow","strokeColor":"#697586","strokeWidth":1.5,"endMarker":"arrow"}}`
+`{"id":"唯一ID","source":"节点ID","target":"节点ID","sourceAnchor":"bottom","targetAnchor":"top","label":"可选文字","style":{"lineType":"elbow","strokeColor":"#697586","strokeWidth":1.5,"strokeStyle":"solid","endMarker":"arrow"}}`
 
 允许的 `shape`：
 
@@ -34,9 +34,15 @@
 - 颜色只能是 `#RRGGBB`，填充可为 `transparent`。
 - 锚点只能是 `top,right,bottom,left`。
 - 线型只能是 `straight,elbow,curve`，箭头只能是 `arrow,none`。
+- 描边样式 `strokeStyle` 只能是 `solid,dashed,dotted`，默认 `solid`。
 - 每条连线必须引用已存在且不同的 source/target 节点。
 - 图形不能重叠；同层节点对齐，间距至少 32；流程图优先从上到下。
+- 连线不得穿过任何非起止节点，平行线段至少间隔 24px；分支节点周围预留至少 48px 连线通道。
+- `decision` 的“是/否”出口必须使用不同 `sourceAnchor`：纵向主流程通常“是”使用 `bottom`，“否”使用 `left` 或 `right`，并把否分支节点放在对应侧；禁止两条分支共用同一出口后重叠。
+- 锚点必须朝向另一个节点：上方来源进入目标用 `targetAnchor:top`，下方来源用 `bottom`，左侧来源用 `left`，右侧来源用 `right`。如果来源中心的 x 落在目标宽度内，禁止从目标 `left/right` 进入；如果来源中心的 y 落在目标高度内，禁止从目标 `top/bottom` 进入。
+- 多条连线进入同一节点且来源方向不同时，必须使用不同 `targetAnchor`；例如上方来源进入 `top`、左侧来源进入 `left`，不能为了对齐而让连线横穿目标图形。
 - 普通节点推荐 180×64，判断节点推荐 180×110。
+- 思维导图使用 `nodes + edges` 表达层级：中心主题使用 `roundRectangle`，分支使用 `rectangle`，连线使用 `curve`、`endMarker:none`。
 
 <!-- AI_RUNTIME_SPEC_END -->
 
@@ -85,6 +91,7 @@
     "fill": "#E8F1FF",
     "strokeColor": "#5B8FF9",
     "strokeWidth": 1.5,
+    "strokeStyle": "solid",
     "fontSize": 14,
     "textColor": "#273142"
   }
@@ -163,6 +170,7 @@ UML / Smart：
 | `fill`        | string | `#RRGGBB`；透明使用 `transparent` |
 | `strokeColor` | string | `#RRGGBB`                         |
 | `strokeWidth` | number | `0..8`                            |
+| `strokeStyle` | string | `solid`、`dashed`、`dotted`       |
 | `fontSize`    | number | `10..72`                          |
 | `textColor`   | string | `#RRGGBB`                         |
 
@@ -192,6 +200,7 @@ UML / Smart：
     "lineType": "elbow",
     "strokeColor": "#697586",
     "strokeWidth": 1.5,
+    "strokeStyle": "solid",
     "endMarker": "arrow"
   }
 }
@@ -216,9 +225,51 @@ UML / Smart：
 | `lineType`    | string | `straight`、`elbow`、`curve` |
 | `strokeColor` | string | `#RRGGBB`                    |
 | `strokeWidth` | number | `0.5..8`                     |
+| `strokeStyle` | string | `solid`、`dashed`、`dotted`  |
 | `endMarker`   | string | `arrow` 或 `none`            |
 
 默认使用 `elbow` 和 `arrow`。流程方向应通过锚点表达，例如纵向流程使用 `bottom -> top`，横向流程使用 `right -> left`。
+
+### 4.3 防止连线与箭头重叠
+
+- 连线只能在起点和终点处接触节点边界，任何中间线段都不能穿过其他节点。
+- 同一节点有多条出边时，优先分配不同的 `sourceAnchor`；同一节点有多条入边时，优先分配不同的 `targetAnchor`。
+- 纵向流程的普通步骤使用 `bottom -> top`。判断节点的主分支继续向下，使用 `bottom -> top`；另一分支向左或向右展开，使用 `left -> right` 或 `right -> left`。
+- 判断条件的两个出口不得同时使用 `bottom`，否则箭头和“是/否”标签会重叠。默认约定：“是”沿主流程向下，“否”向距离其他节点更远的一侧展开。
+- 分支目标节点必须位于出口方向：从 `left` 离开的目标放在判断节点左侧，从 `right` 离开的目标放在右侧，从 `bottom` 离开的目标放在下方。
+- `targetAnchor` 必须位于面向来源节点的一侧：来源在上方时连接 `top`，来源在下方时连接 `bottom`，来源在左侧时连接 `left`，来源在右侧时连接 `right`。不得选择需要让最后一段连线穿过目标内部才能到达的锚点。
+- 特别注意“斜上方来源”：若来源中心的 x 仍落在目标的 `[x, x + width]` 范围内，应视为上方来源并连接 `top`，不能连接 `left/right`；“斜侧方来源”按相同原则检查 y 投影。
+- 同一目标有多条入边时，根据各来源位置分配不同入口。例如失败节点同时接收上方注册流程和左侧校验流程时，应分别使用 `top` 和 `left`，不能共用入口或让其中一条线穿过失败节点。
+- 两条平行连线的可见线段至少间隔 24px；连线与非起止节点边缘至少间隔 24px；判断节点与分支目标之间建议保留 80px 以上通道。
+- 回流线放在流程外侧，不能逆向穿过主流程节点。回流目标应使用侧边锚点，例如 `top -> left`，不要与主流程的 `bottom -> top` 共用路径。
+- “是”“否”等标签必须属于不同连线并跟随各自出口；标签附近至少保留 16px 空白，不要放在两条线的交叉点或重合线段上。
+
+纵向判断分支推荐结构：
+
+```json
+[
+  {
+    "id": "edge_yes",
+    "source": "decision_stock",
+    "target": "deduct_stock",
+    "sourceAnchor": "bottom",
+    "targetAnchor": "top",
+    "label": "是",
+    "style": { "lineType": "elbow", "endMarker": "arrow" }
+  },
+  {
+    "id": "edge_no",
+    "source": "decision_stock",
+    "target": "sold_out",
+    "sourceAnchor": "right",
+    "targetAnchor": "left",
+    "label": "否",
+    "style": { "lineType": "elbow", "endMarker": "arrow" }
+  }
+]
+```
+
+其中 `deduct_stock` 必须位于 `decision_stock` 下方，`sold_out` 必须位于其右侧。若右侧已有节点，则整体镜像到左侧，并改用 `left -> right`。
 
 ## 5. 布局规则
 
@@ -228,10 +279,91 @@ UML / Smart：
 - 判断节点建议 `width=150..190`、`height=90..120`。
 - UML 类图建议 `width=200..280`、`height=120..220`。
 - 横向节点中心间距建议 240px，纵向节点中心间距建议 140px。
-- 分支汇聚前后留出额外空间，避免连线穿过节点。
+- 分支汇聚前后留出额外空间，判断分支建议横向中心间距至少 280px，避免连线穿过节点。
+- 先放置节点，再按节点位置分配锚点；若连线会穿过节点，应移动分支节点或切换到另一侧，而不是继续输出重叠连线。
 - 连线只连接语义相关节点，不要用连线绘制装饰边框。
 
-## 6. 完整示例
+### 5.1 思维导图
+
+当前 AI 中间格式统一使用 `nodes + edges`，思维导图不新增私有根节点类型：
+
+- 中心主题使用 `roundRectangle`，尺寸建议 `180×72`。
+- 一级、二级分支使用 `rectangle` 或 `roundRectangle`，尺寸建议 `140..180 × 48..64`。
+- 中心主题放在画布中心；一级分支在左右两侧分布，子分支沿父分支方向继续展开。
+- 每个非根节点只保留一条来自父节点的连线，不要形成环。
+- 思维导图连线推荐 `lineType:"curve"`、`endMarker:"none"`；主分支可使用更粗的 `strokeWidth`。
+- 同一分支的节点与连线使用相同的 `strokeColor`，不同一级分支可以使用不同色系。
+- 横向连接使用 `right -> left` 或 `left -> right`，不要让连线穿过其他节点。
+
+示例：
+
+```json
+{
+  "version": 1,
+  "title": "产品规划",
+  "nodes": [
+    {
+      "id": "root",
+      "shape": "roundRectangle",
+      "x": 500,
+      "y": 320,
+      "width": 180,
+      "height": 72,
+      "text": "产品规划"
+    },
+    {
+      "id": "requirements",
+      "shape": "roundRectangle",
+      "x": 220,
+      "y": 210,
+      "width": 160,
+      "height": 56,
+      "text": "需求分析"
+    },
+    {
+      "id": "delivery",
+      "shape": "roundRectangle",
+      "x": 800,
+      "y": 430,
+      "width": 160,
+      "height": 56,
+      "text": "发布计划"
+    }
+  ],
+  "edges": [
+    {
+      "id": "root_requirements",
+      "source": "root",
+      "target": "requirements",
+      "sourceAnchor": "left",
+      "targetAnchor": "right",
+      "style": {
+        "lineType": "curve",
+        "strokeColor": "#5B8FF9",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "endMarker": "none"
+      }
+    },
+    {
+      "id": "root_delivery",
+      "source": "root",
+      "target": "delivery",
+      "sourceAnchor": "right",
+      "targetAnchor": "left",
+      "style": {
+        "lineType": "curve",
+        "strokeColor": "#5BB98C",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "endMarker": "none"
+      }
+    }
+  ]
+}
+```
+
+## 6. 完整流程图示例
 
 用户描述：“生成一个用户提交工单的流程图，审核通过后进入处理中，不通过则退回修改，最后完成。”
 

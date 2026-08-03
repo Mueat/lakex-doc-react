@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LakexEditor, BlockMenuAction } from "@dlient/lakex-doc-react";
+import { drawingBoardGenerate } from "./drawingBoardAI";
 // @ts-ignore
 import "./App.css";
 
@@ -52,6 +53,11 @@ function App() {
           <LakexEditor
             dark={isDark}
             language={language}
+            config={{
+              drawingBoardAI: {
+                generate: drawingBoardGenerate,
+              },
+            }}
             onContentChange={handleContentChange}
             onBlockAction={handleBlockAction}
           />

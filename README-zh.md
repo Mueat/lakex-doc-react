@@ -189,17 +189,29 @@ import '@dlient/lakex-doc-react/style.css';
 
 ### AI 画板助手
 
-画板工具栏中的 AI 入口不绑定模型厂商，也不会在浏览器中保存 API Key。业务层通过 `drawingBoardAI.generate` 把 `systemPrompt` 作为系统消息、`description` 作为用户消息发送给自己的服务端。画板会校验返回的 JSON，再转换成 Drawnix/Plait 原生元素。
+画板工具栏中的 AI 入口不绑定模型厂商，也不会在浏览器中保存 API Key。业务层通过 `drawingBoardAI.generate` 把 `systemPrompt` 作为系统消息、`contextPrompt` 作为用户消息发送给自己的服务端。`contextPrompt` 已组合用户需求历史、当前画布唯一一份最新 JSON 和本轮需求；旧的 AI JSON 不会重复进入上下文。画板会校验返回的 JSON，再转换成 Drawnix/Plait 原生元素。
 
 ```tsx
 <LakexEditor
   config={{
     drawingBoardAI: {
-      generate: async ({ description, systemPrompt, locale }) => {
+      generate: async ({
+        description,
+        systemPrompt,
+        contextPrompt,
+        locale,
+        signal,
+      }) => {
         const response = await fetch('/api/ai/drawing-board', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ description, systemPrompt, locale }),
+          body: JSON.stringify({
+            description,
+            systemPrompt,
+            contextPrompt,
+            locale,
+          }),
+          signal,
         });
         if (!response.ok) throw new Error('AI request failed');
         const result = await response.json();
@@ -211,7 +223,33 @@ import '@dlient/lakex-doc-react/style.css';
 />
 ```
 
+需求历史按画板实例隔离，只在一次生成成功后写入，最多保留最近 20 条且限制总字符数。每轮请求都会重新读取当前画布，因此用户手工绘制、移动、改字后的内容也会进入下一轮上下文。清空画布后再次打开助手会自动开始新会话，也可以点击“新对话”主动清空需求历史。
+
 画板格式规范见 [`docs/lakex-drawing-board-json-format-skills.md`](docs/lakex-drawing-board-json-format-skills.md)。建议服务端启用模型的 JSON/Structured Output 模式，并保留超时、鉴权和用量限制。
+
+#### 本地示例接入 EdgeFN / GLM
+
+示例项目内置了仅在 Vite 开发服务器运行的代理。复制环境变量模板：
+
+```bash
+cp examples/.env.example examples/.env.local
+```
+
+然后在 `examples/.env.local` 中填写新生成的密钥：
+
+```dotenv
+LAKEX_AI_API_KEY=replace-with-your-new-api-key
+LAKEX_AI_ENDPOINT=https://api.edgefn.net/v1/chat/completions
+LAKEX_AI_MODEL=GLM-5.2
+LAKEX_AI_STREAM=true
+LAKEX_AI_REQUEST_TIMEOUT_MS=360000
+LAKEX_AI_IDLE_TIMEOUT_MS=120000
+LAKEX_AI_MAX_RETRIES=1
+LAKEX_AI_MAX_TOKENS=8192
+VITE_LAKEX_AI_USE_MOCK=false
+```
+
+运行 `npm run examples` 后，浏览器只访问同源的 `/api/ai/drawing-board`。密钥由本地 Vite Node 进程读取，不会出现在浏览器请求、前端 bundle 或 Git 提交中。代理默认使用服务商的 SSE 流式响应消除长 JSON 的首字节等待，但会在服务端收集完整内容并仍以普通 JSON 返回给画板；429、5xx 和网络错误默认退避重试一次。总请求上限默认为 6 分钟，连续 2 分钟没有收到任何数据才判定超时。关闭生成弹窗时，请求会通过 `AbortSignal` 一并取消。部署生产环境时，应把相同代理逻辑迁移到正式后端或 Serverless Function。
 
 ---
 

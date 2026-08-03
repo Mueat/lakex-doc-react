@@ -99,6 +99,25 @@
   z-index: 130 !important;
 }
 
+/* Drawnix already owns link creation, hover preview, editing and removal.
+   Its floating link island has no explicit stacking level, so Lakex's board
+   host/active layers can otherwise paint over it. */
+.lakex-drawnix-core .link-popup {
+  z-index: 150 !important;
+  pointer-events: auto;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .link-popup {
+  border-color: var(--island-border-color, #3d3d3d);
+  background: var(--island-bg-color, #242424);
+  color: var(--color-gray-90, #f5f5f5);
+}
+
+.lakex-drawnix-core[data-theme="dark"] .link-popup__input {
+  background: transparent;
+  color: var(--color-gray-90, #f5f5f5);
+}
+
 /* Color pickers, arrow selectors and the more-actions menu are rendered as
    sibling floating dialogs by the native toolbar. They must share the popup
    layer; otherwise the board SVG (z-index: 1) paints over them. */
@@ -1514,6 +1533,57 @@ ne-card-root:has(.lakex-material-library__backdrop) {
   accent-color: #1ca05a;
 }
 
+.lakex-ai-board-dialog__memory {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #f6f7f9;
+}
+
+.lakex-ai-board-dialog__memory > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lakex-ai-board-dialog__memory span {
+  overflow: hidden;
+  color: #747981;
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lakex-ai-board-dialog__memory span:first-child {
+  color: #4d535b;
+  font-weight: 500;
+}
+
+.lakex-ai-board-dialog__memory button {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #168c4c;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.lakex-ai-board-dialog__memory button:hover:not(:disabled) {
+  background: rgba(32, 169, 93, 0.1);
+}
+
+.lakex-ai-board-dialog__memory button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .lakex-ai-board-dialog__notice,
 .lakex-ai-board-dialog__error {
   margin: 12px 0 0;
@@ -1586,6 +1656,44 @@ ne-card-root:has(.lakex-material-library__backdrop) {
   opacity: 0.5;
 }
 
+.lakex-ai-board-toast {
+  position: absolute;
+  z-index: 270;
+  top: 20px;
+  left: 50%;
+  display: flex;
+  max-width: min(460px, calc(100% - 32px));
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(24, 32, 44, 0.18);
+  color: #3d434b;
+  font-size: 13px;
+  line-height: 1.5;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.lakex-ai-board-toast > span {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 50%;
+  place-items: center;
+  background: #20a95d;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lakex-ai-board-toast[data-type="error"] > span {
+  background: #d84a45;
+}
+
 .lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-overlay {
   background: rgba(0, 0, 0, 0.58);
 }
@@ -1600,6 +1708,22 @@ ne-card-root:has(.lakex-material-library__backdrop) {
 .lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__header p,
 .lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__options {
   color: #aaaeb5;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__memory {
+  background: #303030;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__memory span {
+  color: #9ea3aa;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__memory span:first-child {
+  color: #d0d3d8;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__memory button {
+  color: #66d394;
 }
 
 .lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-dialog__close {
@@ -1637,6 +1761,13 @@ ne-card-root:has(.lakex-material-library__backdrop) {
   border-color: #25995e;
   background: #25995e;
   color: #fff;
+}
+
+.lakex-drawnix-core[data-theme="dark"] .lakex-ai-board-toast {
+  border-color: #474747;
+  background: #2b2b2b;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.42);
+  color: #ededed;
 }
 
 @media (max-width: 640px) {
