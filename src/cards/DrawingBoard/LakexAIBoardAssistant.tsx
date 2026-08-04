@@ -6,7 +6,7 @@ import {
   buildAIBoardContextPrompt,
   convertAIBoardDocument,
   DRAWING_BOARD_AI_SYSTEM_PROMPT,
-  parseAIBoardDocument,
+  parseAIBoardResponse,
   serializeBoardToAIDocument,
 } from "./aiBoardSchema";
 
@@ -202,8 +202,13 @@ export default function LakexAIBoardAssistant({
       ) {
         return;
       }
-      const document = parseAIBoardDocument(response);
-      onApply(convertAIBoardDocument(document, board), mode);
+      const parsed = parseAIBoardResponse(response);
+      onApply(
+        parsed.kind === "native"
+          ? parsed.elements
+          : convertAIBoardDocument(parsed.document, board),
+        mode,
+      );
       setHistory((previous) => [...previous, prompt].slice(-20));
       setOpen(false);
       setDescription("");

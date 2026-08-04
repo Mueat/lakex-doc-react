@@ -1,6 +1,6 @@
 # Lakex AI 画板 JSON 格式规范
 
-本文档用于指导 AI 把自然语言描述转换为 Lakex 画板可导入的 JSON。它描述的是稳定、受控的 AI 中间格式，不是 Drawnix/Plait 的内部存储格式。应用会校验本格式，再转换为原生画板元素。
+本文档用于指导 AI 把自然语言描述转换为 Lakex 画板可导入的 JSON。普通图表使用稳定、受控的 AI 中间格式；原生思维导图允许使用受校验的 `plaitValue` 树结构。应用会校验响应，再转换或挂载为原生画板元素。
 
 <!-- AI_RUNTIME_SPEC_START -->
 
@@ -42,7 +42,8 @@
 - 锚点必须朝向另一个节点：上方来源进入目标用 `targetAnchor:top`，下方来源用 `bottom`，左侧来源用 `left`，右侧来源用 `right`。如果来源中心的 x 落在目标宽度内，禁止从目标 `left/right` 进入；如果来源中心的 y 落在目标高度内，禁止从目标 `top/bottom` 进入。
 - 多条连线进入同一节点且来源方向不同时，必须使用不同 `targetAnchor`；例如上方来源进入 `top`、左侧来源进入 `left`，不能为了对齐而让连线横穿目标图形。
 - 普通节点推荐 180×64，判断节点推荐 180×110。
-- 思维导图使用 `nodes + edges` 表达层级：中心主题使用 `roundRectangle`，分支使用 `rectangle`，连线使用 `curve`、`endMarker:none`。
+- 当前 AI 响应中的普通图表使用 `nodes + edges` 表达；思维导图也可以使用这一中间格式，中心主题使用 `roundRectangle`，分支使用 `rectangle`，连线使用 `curve`、`endMarker:none`。如果需要保留原生思维导图层级，也可以直接返回第 7 节定义的 `{ "plaitValue": [...] }`，应用会提取、校验并规范化后直接挂载到画板，不会再转换成普通几何节点。
+- 原生思维导图响应是唯一允许的替代根结构：`{ "plaitValue": [{ "type":"mind", "data":{...}, "children":[...] }] }`。此时不要同时输出 `version`、`nodes` 或 `edges`，也不要把 `mind_child` 放到顶层。
 
 <!-- AI_RUNTIME_SPEC_END -->
 
@@ -283,17 +284,21 @@ UML / Smart：
 - 先放置节点，再按节点位置分配锚点；若连线会穿过节点，应移动分支节点或切换到另一侧，而不是继续输出重叠连线。
 - 连线只连接语义相关节点，不要用连线绘制装饰边框。
 
-### 5.1 思维导图
+### 5.1 AI 中间格式思维导图
 
-当前 AI 中间格式统一使用 `nodes + edges`，思维导图不新增私有根节点类型：
+默认 AI 中间格式使用 `nodes + edges`，思维导图不新增私有根节点类型：
 
 - 中心主题使用 `roundRectangle`，尺寸建议 `180×72`。
 - 一级、二级分支使用 `rectangle` 或 `roundRectangle`，尺寸建议 `140..180 × 48..64`。
 - 中心主题放在画布中心；一级分支在左右两侧分布，子分支沿父分支方向继续展开。
+- 每个节点必须有不同且可用的 `x/y` 坐标；中心与一级分支至少间隔 220px，同一层分支至少间隔 96px。禁止所有节点复用中心节点坐标。
 - 每个非根节点只保留一条来自父节点的连线，不要形成环。
 - 思维导图连线推荐 `lineType:"curve"`、`endMarker:"none"`；主分支可使用更粗的 `strokeWidth`。
 - 同一分支的节点与连线使用相同的 `strokeColor`，不同一级分支可以使用不同色系。
 - 横向连接使用 `right -> left` 或 `left -> right`，不要让连线穿过其他节点。
+
+当前 AI 生成接口默认接收本规范的 `nodes + edges`，应用层会通过
+`convertAIBoardDocument` 转换为画板元素。对于需要保留原生思维导图树结构的请求，也可以返回 `{ "plaitValue": [...] }`；应用会先校验并规范化 `mind` / `mind_child`，再通过原生 Mind 插入流程直接挂载，不能把它们当作普通几何节点处理。
 
 示例：
 
@@ -363,11 +368,11 @@ UML / Smart：
 }
 ```
 
-## 6. 完整流程图示例
+## 6. 普通流程图中间格式示例
 
 用户描述：“生成一个用户提交工单的流程图，审核通过后进入处理中，不通过则退回修改，最后完成。”
 
-模型应只返回：
+模型在使用 `nodes + edges` 模式时应只返回以下 JSON；这段示例仍适用于流程图、UML 和普通画板，不适用于原生思维导图 `plaitValue` 模式：
 
 ```json
 {
@@ -492,4 +497,118 @@ UML / Smart：
 }
 ```
 
-注意：实际响应不能包含上面的 Markdown 代码围栏，只包含 JSON 对象。
+注意：实际响应不能包含上面的 Markdown 代码围栏，只包含 JSON 对象。若生成原生思维导图，则应改用第 7 节的 `{ "plaitValue": [...] }` 根结构。
+
+## 7. 原生 `plaitValue` 持久化格式
+
+`plaitValue` 是画板卡片保存到 Lakex 文档中的原生 Plait 元素数组。它与上面的 AI 中间格式不同：AI 接口使用 `version + nodes + edges`，卡片值使用 `plaitValue`。`writeText` 会把它包装为如下 JSON：
+
+```json
+{
+  "type": "drawnix",
+  "version": 1,
+  "source": "lakex",
+  "elements": [],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+}
+```
+
+### 7.1 原生思维导图结构
+
+思维导图不是由独立的 `edges` 元素组成，而是由一棵嵌套树组成：
+
+- 根节点的 `type` 是 `mind`；兼容旧数据时也可能看到 `mindmap`。
+- 子孙节点的 `type` 是 `mind_child`，关系由父节点的 `children` 表达。
+- 每个节点都必须有唯一 `id`、`data` 和 `children`；叶子节点使用空数组 `children: []`。
+- `data.topic` 是 Slate 段落，不是普通字符串，结构固定为 `{ "children": [{ "text": "..." }], "type": "paragraph" }`。
+- 根节点通常有 `layout` 和单点 `points`。`points` 是根节点左上角逻辑坐标，格式为 `[[x, y]]`，不是普通图形的 `[[left, top], [right, bottom]]`。
+- `layout` 支持 `right`、`left`、`standard`、`upward`、`downward`，以及 `right-bottom-indented`、`right-top-indented`、`left-top-indented`、`left-bottom-indented`。
+- `rightNodeCount` 用于 `standard` 布局区分根节点左右分支；没有左右分支时可以省略。不要把它写到子节点上。
+- `fill`、`strokeColor`、`strokeWidth`、`strokeStyle`、`shape`、`branchColor`、`branchWidth`、`branchShape`、`isCollapsed`、`manualWidth` 等是可选的原生样式或布局字段，应使用项目已有值，不要创造新的字段名。
+- `shape` 的原生思维导图值是 `round-rectangle` 或 `underline`；它与 AI 中间格式的 `roundRectangle` 不是同一个字段值。
+
+最小可用的原生思维导图示例：
+
+```json
+{
+  "plaitValue": [
+    {
+      "id": "tnpPz",
+      "type": "mind",
+      "data": {
+        "topic": {
+          "children": [{ "text": "中心主题" }],
+          "type": "paragraph"
+        }
+      },
+      "children": [
+        {
+          "id": "ntyaw",
+          "type": "mind_child",
+          "data": {
+            "topic": {
+              "children": [{ "text": "1111" }],
+              "type": "paragraph"
+            }
+          },
+          "children": []
+        },
+        {
+          "id": "xNewH",
+          "type": "mind_child",
+          "data": {
+            "topic": {
+              "children": [{ "text": "22222" }],
+              "type": "paragraph"
+            }
+          },
+          "children": []
+        }
+      ],
+      "layout": "right",
+      "points": [[0, 0]]
+    }
+  ]
+}
+```
+
+带二级分支时，只需继续嵌套 `children`，不要新增 `edges`：
+
+```json
+{
+  "id": "ntyaw",
+  "type": "mind_child",
+  "data": {
+    "topic": {
+      "children": [{ "text": "用户系统" }],
+      "type": "paragraph"
+    }
+  },
+  "children": [
+    {
+      "id": "ntyaw-login",
+      "type": "mind_child",
+      "data": {
+        "topic": {
+          "children": [{ "text": "登录" }],
+          "type": "paragraph"
+        }
+      },
+      "children": []
+    }
+  ]
+}
+```
+
+### 7.2 原生思维导图与 AI 格式的转换边界
+
+保存或恢复卡片时读取 `value.plaitValue`。调用 AI 时，普通图表使用 `nodes + edges`，需要通过 `convertAIBoardDocument` 转换；原生思维导图可以直接使用 `{ "plaitValue": [...] }`，应用只做安全校验、字段规范化和容器提取，然后通过原生 Mind 插入流程挂载。不要把 `mind_child` 拆成普通几何节点或独立 `edges`；必须保持父子嵌套结构，否则会出现 `mind element has not been mounted` 或无法计算节点边界的问题。
+
+两种响应格式的处理边界如下：
+
+| AI 响应根结构 | 适用场景 | 应用处理 |
+| --- | --- | --- |
+| `{ "version": 1, "nodes": [], "edges": [] }` | 普通画板、流程图、UML，以及使用中间格式表达的思维导图 | 校验后转换为 geometry / arrow-line 元素 |
+| `{ "plaitValue": [{ "type": "mind", "children": [...] }] }` | 需要保留原生层级、布局和思维导图行为 | 提取并校验原生树，直接挂载为 `mind` 元素 |
+
+因此，你给出的 `plaitValue` 不需要再转换成 `nodes + edges`；只需要保留完整的 `mind` / `mind_child` 树结构，并作为 AI 响应的根对象返回。

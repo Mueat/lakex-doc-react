@@ -162,6 +162,100 @@ const readStrokeStyle = (value: unknown): StrokeStyle =>
     ? value
     : StrokeStyle.solid;
 
+const getNodeOverlapRatio = (left: AIBoardNode, right: AIBoardNode) => {
+  const overlapWidth = Math.max(
+    0,
+    Math.min(left.x + left.width, right.x + right.width) -
+      Math.max(left.x, right.x),
+  );
+  const overlapHeight = Math.max(
+    0,
+    Math.min(left.y + left.height, right.y + right.height) -
+      Math.max(left.y, right.y),
+  );
+  const overlapArea = overlapWidth * overlapHeight;
+  return overlapArea / Math.min(left.width * left.height, right.width * right.height);
+};
+
+/**
+ * Models occasionally return the same x/y for every node in a mind map. The
+ * renderer correctly draws those nodes, but the result is unusable. Detect a
+ * severe collision before conversion and lay out tree-shaped data using its
+ * parent-child edges. Normal, intentionally positioned diagrams are left
+ * untouched.
+ */
+const normalizeAIBoardLayout = (
+  nodes: AIBoardNode[],
+  edges: AIBoardEdge[],
+): AIBoardNode[] => {
+  if (nodes.length < 2) return nodes;
+  let overlapPairs = 0;
+  for (let left = 0; left < nodes.length; left += 1) {
+    for (let right = left + 1; right < nodes.length; right += 1) {
+      if (getNodeOverlapRatio(nodes[left], nodes[right]) >= 0.35) {
+        overlapPairs += 1;
+      }
+    }
+  }
+  if (overlapPairs < nodes.length - 1) return nodes;
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const childrenById = new Map<string, string[]>();
+  const incomingCount = new Map<string, number>();
+  nodes.forEach((node) => {
+    childrenById.set(node.id, []);
+    incomingCount.set(node.id, 0);
+  });
+  edges.forEach((edge) => {
+    if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) return;
+    childrenById.get(edge.source)?.push(edge.target);
+    incomingCount.set(edge.target, (incomingCount.get(edge.target) ?? 0) + 1);
+  });
+  const roots = nodes
+    .filter((node) => incomingCount.get(node.id) === 0)
+    .map((node) => node.id);
+  const isTreeLike =
+    roots.length > 0 &&
+    edges.length === nodes.length - roots.length &&
+    [...incomingCount.values()].every((count) => count <= 1);
+  if (!isTreeLike) {
+    const columns = Math.max(1, Math.ceil(Math.sqrt(nodes.length)));
+    return nodes.map((node, index) => ({
+      ...node,
+      x: 120 + (index % columns) * 320,
+      y: 120 + Math.floor(index / columns) * 180,
+    }));
+  }
+
+  const normalized = new Map(nodes.map((node) => [node.id, { ...node }]));
+  const columnStep = Math.max(...nodes.map((node) => node.width), 180) + 160;
+  const verticalGap = Math.max(...nodes.map((node) => node.height), 64) + 72;
+  let cursorY = 120;
+  const visited = new Set<string>();
+  const place = (id: string, depth: number): number | null => {
+    if (visited.has(id)) return null;
+    const node = normalized.get(id);
+    if (!node) return null;
+    visited.add(id);
+    const childCenters = (childrenById.get(id) ?? [])
+      .map((childId) => place(childId, depth + 1))
+      .filter((value): value is number => value !== null);
+    const centerY = childCenters.length
+      ? childCenters.reduce((sum, value) => sum + value, 0) /
+        childCenters.length
+      : cursorY + node.height / 2;
+    if (!childCenters.length) cursorY += node.height + verticalGap;
+    node.x = 120 + depth * columnStep;
+    node.y = centerY - node.height / 2;
+    return centerY;
+  };
+  roots.forEach((root) => place(root, 0));
+  nodes.forEach((node) => {
+    if (!visited.has(node.id)) place(node.id, 0);
+  });
+  return nodes.map((node) => normalized.get(node.id) ?? node);
+};
+
 const parseResponseValue = (response: unknown): unknown => {
   if (typeof response !== "string") return response;
   const trimmed = response.trim();
@@ -174,6 +268,208 @@ const parseResponseValue = (response: unknown): unknown => {
     throw new Error("AI_RESPONSE_NOT_JSON");
   }
 };
+
+const nativeMindLayouts = new Set([
+  "right",
+  "left",
+  "standard",
+  "upward",
+  "downward",
+  "right-bottom-indented",
+  "right-top-indented",
+  "left-top-indented",
+  "left-bottom-indented",
+]);
+
+const readNativeTopic = (value: unknown, path: string) => {
+  if (!isRecord(value) || value.type !== "paragraph") {
+    throw new Error(`AI_NATIVE_TOPIC_INVALID:${path}`);
+  }
+  if (!Array.isArray(value.children) || value.children.length === 0) {
+    throw new Error(`AI_NATIVE_TOPIC_INVALID:${path}`);
+  }
+  return {
+    type: "paragraph",
+    children: value.children.map((leaf, index) => {
+      if (!isRecord(leaf) || typeof leaf.text !== "string") {
+        throw new Error(`AI_NATIVE_TOPIC_INVALID:${path}.${index}`);
+      }
+      const result: Record<string, unknown> = {
+        text: readString(leaf.text, 500),
+      };
+      ["bold", "italic", "underline", "strikeThrough"].forEach((key) => {
+        if (typeof leaf[key] === "boolean") result[key] = leaf[key];
+      });
+      if (typeof leaf.color === "string") {
+        result.color = readColor(leaf.color, "#273142");
+      }
+      if (leaf["font-size"] !== undefined) {
+        result["font-size"] = String(readNumber(leaf["font-size"], 14, 10, 72));
+      }
+      return result;
+    }),
+  };
+};
+
+const readNativePoints = (value: unknown, fallback: [number, number]) => {
+  if (!Array.isArray(value)) return [fallback];
+  const points = value
+    .filter(
+      (point): point is [number, number] =>
+        Array.isArray(point) &&
+        point.length >= 2 &&
+        Number.isFinite(Number(point[0])) &&
+        Number.isFinite(Number(point[1])),
+    )
+    .slice(0, 8)
+    .map(
+      (point) =>
+        [
+          clamp(Number(point[0]), -5000, 5000),
+          clamp(Number(point[1]), -5000, 5000),
+        ] as [number, number],
+    );
+  return points.length ? points : [fallback];
+};
+
+const readNativeMindElement = (
+  value: unknown,
+  ids: Set<string>,
+  root: boolean,
+  path: string,
+  fallbackPoint: [number, number],
+  depth: number,
+): PlaitElement => {
+  if (!isRecord(value) || depth > 50) {
+    throw new Error(`AI_NATIVE_ELEMENT_INVALID:${path}`);
+  }
+  const id = readString(value.id, 64);
+  if (!/^[a-zA-Z0-9_-]+$/.test(id) || ids.has(id)) {
+    throw new Error(`AI_NATIVE_ID_INVALID:${path}`);
+  }
+  const type = value.type;
+  if (
+    (root && type !== "mind" && type !== "mindmap") ||
+    (!root && type !== "mind_child")
+  ) {
+    throw new Error(`AI_NATIVE_TYPE_INVALID:${path}`);
+  }
+  if (!isRecord(value.data)) {
+    throw new Error(`AI_NATIVE_DATA_INVALID:${path}`);
+  }
+  const childrenValue = value.children ?? [];
+  if (!Array.isArray(childrenValue)) {
+    throw new Error(`AI_NATIVE_CHILDREN_INVALID:${path}`);
+  }
+  ids.add(id);
+  const element: Record<string, any> = {
+    id,
+    type,
+    data: { topic: readNativeTopic(value.data.topic, `${path}.data.topic`) },
+    children: childrenValue.map((child, index) =>
+      readNativeMindElement(
+        child,
+        ids,
+        false,
+        `${path}.children[${index}]`,
+        fallbackPoint,
+        depth + 1,
+      ),
+    ),
+  };
+  if (root) {
+    element.points = readNativePoints(value.points, fallbackPoint);
+    element.layout = nativeMindLayouts.has(String(value.layout))
+      ? value.layout
+      : "right";
+  } else if (nativeMindLayouts.has(String(value.layout))) {
+    element.layout = value.layout;
+  }
+  if (typeof value.rightNodeCount === "number") {
+    element.rightNodeCount = Math.max(
+      0,
+      Math.floor(value.rightNodeCount),
+    );
+  }
+  if (typeof value.manualWidth === "number") {
+    element.manualWidth = readNumber(value.manualWidth, 0, 40, 1200);
+  }
+  if (typeof value.isCollapsed === "boolean") {
+    element.isCollapsed = value.isCollapsed;
+  }
+  if (value.shape === "round-rectangle" || value.shape === "underline") {
+    element.shape = value.shape;
+  }
+  if (value.branchShape === "bight" || value.branchShape === "polyline") {
+    element.branchShape = value.branchShape;
+  }
+  if (typeof value.fill === "string") {
+    element.fill = readColor(value.fill, "#E8F1FF", true);
+  }
+  if (typeof value.strokeColor === "string") {
+    element.strokeColor = readColor(value.strokeColor, "#5B8FF9");
+  }
+  if (value.strokeWidth !== undefined) {
+    element.strokeWidth = readNumber(value.strokeWidth, 1.5, 0, 8);
+  }
+  if (value.strokeStyle !== undefined) {
+    element.strokeStyle = readStrokeStyle(value.strokeStyle);
+  }
+  if (typeof value.branchColor === "string") {
+    element.branchColor = readColor(value.branchColor, "#5B8FF9");
+  }
+  if (value.branchWidth !== undefined) {
+    element.branchWidth = readNumber(value.branchWidth, 1.5, 0.5, 8);
+  }
+  return element as PlaitElement;
+};
+
+const parseNativePlaitValue = (value: unknown): PlaitElement[] => {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 20) {
+    throw new Error("AI_NATIVE_SIZE_INVALID");
+  }
+  const ids = new Set<string>();
+  let totalNodes = 0;
+  const elements = value.map((item, index) => {
+    const before = ids.size;
+    const element = readNativeMindElement(
+      item,
+      ids,
+      true,
+      `plaitValue[${index}]`,
+      [120 + index * 360, 120],
+      0,
+    );
+    totalNodes += ids.size - before;
+    if (totalNodes > 80) throw new Error("AI_NATIVE_SIZE_INVALID");
+    return element;
+  });
+  return elements;
+};
+
+export type ParsedAIBoardResponse =
+  | { kind: "intermediate"; document: AIBoardDocument }
+  | { kind: "native"; elements: PlaitElement[] };
+
+export function parseAIBoardResponse(
+  response: unknown,
+): ParsedAIBoardResponse {
+  const raw = parseResponseValue(response);
+  if (isRecord(raw)) {
+    const nativeValue = Array.isArray(raw.plaitValue)
+      ? raw.plaitValue
+      : Array.isArray(raw.elements)
+        ? raw.elements
+        : null;
+    if (nativeValue) {
+      return { kind: "native", elements: parseNativePlaitValue(nativeValue) };
+    }
+  }
+  return {
+    kind: "intermediate",
+    document: parseAIBoardDocument(raw),
+  };
+}
 
 export function parseAIBoardDocument(response: unknown): AIBoardDocument {
   const raw = parseResponseValue(response);
@@ -257,11 +553,12 @@ export function parseAIBoardDocument(response: unknown): AIBoardDocument {
       },
     };
   });
+  const normalizedNodes = normalizeAIBoardLayout(nodes, edges);
 
   return {
     version: 1,
     title: readString(raw.title, 120) || undefined,
-    nodes,
+    nodes: normalizedNodes,
     edges,
   };
 }
