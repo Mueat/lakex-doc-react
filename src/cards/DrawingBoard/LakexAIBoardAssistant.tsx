@@ -4,10 +4,11 @@ import type { PlaitBoard, PlaitElement } from "@plait/core";
 import type { DrawingBoardAIConfig } from "../../components/lakex/types";
 import {
   buildAIBoardContextPrompt,
+  countAIBoardContextNodes,
   convertAIBoardDocument,
   DRAWING_BOARD_AI_SYSTEM_PROMPT,
   parseAIBoardResponse,
-  serializeBoardToAIDocument,
+  serializeBoardToAIContext,
 } from "./aiBoardSchema";
 
 type Locale = "zh-CN" | "en-US";
@@ -180,7 +181,7 @@ export default function LakexAIBoardAssistant({
     requestRef.current?.controller.abort();
     requestRef.current = { id: requestId, controller };
     try {
-      const currentBoard = serializeBoardToAIDocument(board);
+      const currentBoard = serializeBoardToAIContext(board);
       const contextPrompt = buildAIBoardContextPrompt({
         description: prompt,
         history,
@@ -236,7 +237,7 @@ export default function LakexAIBoardAssistant({
   }, [ai, board, description, history, locale, mode, onApply, showToast, t]);
 
   const currentBoardNodeCount = board
-    ? serializeBoardToAIDocument(board).nodes.length
+    ? countAIBoardContextNodes(serializeBoardToAIContext(board))
     : 0;
 
   const trigger = toolbarHost

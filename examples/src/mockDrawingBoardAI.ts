@@ -51,6 +51,7 @@ const edge = (
   sourceAnchor: "top" | "right" | "bottom" | "left" = "bottom",
   targetAnchor: "top" | "right" | "bottom" | "left" = "top",
   label = "",
+  endMarker: "arrow" | "none" = "arrow",
 ) => ({
   id,
   source,
@@ -63,7 +64,7 @@ const edge = (
     strokeColor: "#697586",
     strokeWidth: 1.5,
     strokeStyle: "solid",
-    endMarker: "arrow",
+    endMarker,
   },
 });
 
@@ -72,18 +73,70 @@ const flowchart = (
   locale: Locale,
 ): DrawingBoardAIResponse => ({
   version: 1,
+  diagramType: "flowchart",
   title: description.slice(0, 80),
   nodes: [
-    node("start", "terminal", 390, 70, 160, 56, choose(locale, "开始", "Start"), "green"),
-    node("input", "process", 370, 180, 200, 64, choose(locale, "输入账号密码", "Enter credentials")),
-    node("check", "decision", 375, 300, 190, 110, choose(locale, "密码正确？", "Password valid?"), "yellow"),
-    node("success", "process", 370, 500, 200, 64, choose(locale, "登录成功", "Login successful"), "green"),
-    node("retry", "process", 70, 323, 210, 64, choose(locale, "提示错误并重试", "Show error and retry"), "purple"),
+    node(
+      "start",
+      "terminal",
+      390,
+      70,
+      160,
+      56,
+      choose(locale, "开始", "Start"),
+      "green",
+    ),
+    node(
+      "input",
+      "process",
+      370,
+      180,
+      200,
+      64,
+      choose(locale, "输入账号密码", "Enter credentials"),
+    ),
+    node(
+      "check",
+      "decision",
+      375,
+      300,
+      190,
+      110,
+      choose(locale, "密码正确？", "Password valid?"),
+      "yellow",
+    ),
+    node(
+      "success",
+      "process",
+      370,
+      500,
+      200,
+      64,
+      choose(locale, "登录成功", "Login successful"),
+      "green",
+    ),
+    node(
+      "retry",
+      "process",
+      70,
+      323,
+      210,
+      64,
+      choose(locale, "提示错误并重试", "Show error and retry"),
+      "purple",
+    ),
   ],
   edges: [
     edge("e1", "start", "input"),
     edge("e2", "input", "check"),
-    edge("e3", "check", "success", "bottom", "top", choose(locale, "是", "Yes")),
+    edge(
+      "e3",
+      "check",
+      "success",
+      "bottom",
+      "top",
+      choose(locale, "是", "Yes"),
+    ),
     edge("e4", "check", "retry", "left", "right", choose(locale, "否", "No")),
     edge("e5", "retry", "input", "top", "left"),
   ],
@@ -94,37 +147,122 @@ const architecture = (
   locale: Locale,
 ): DrawingBoardAIResponse => ({
   version: 1,
+  diagramType: "smart",
   title: description.slice(0, 80),
   nodes: [
-    node("client", "roundRectangle", 70, 250, 170, 72, choose(locale, "Web / 移动端", "Web / Mobile"), "purple"),
-    node("gateway", "component", 330, 240, 190, 92, choose(locale, "API 网关", "API Gateway")),
-    node("users", "component", 620, 90, 200, 84, choose(locale, "用户服务", "User Service"), "green"),
-    node("business", "component", 620, 240, 200, 84, choose(locale, "业务服务", "Business Service"), "green"),
-    node("notice", "component", 620, 390, 200, 84, choose(locale, "通知服务", "Notification Service"), "green"),
-    node("database", "database", 930, 230, 180, 110, choose(locale, "数据存储", "Data Store"), "yellow"),
+    node(
+      "client",
+      "actor",
+      70,
+      220,
+      140,
+      150,
+      choose(locale, "使用者", "User"),
+      "purple",
+    ),
+    node(
+      "gateway",
+      "component",
+      330,
+      240,
+      190,
+      92,
+      choose(locale, "API 网关", "API Gateway"),
+    ),
+    node(
+      "users",
+      "component",
+      620,
+      90,
+      200,
+      84,
+      choose(locale, "用户服务", "User Service"),
+      "green",
+    ),
+    node(
+      "business",
+      "component",
+      620,
+      240,
+      200,
+      84,
+      choose(locale, "业务服务", "Business Service"),
+      "green",
+    ),
+    node(
+      "notice",
+      "component",
+      620,
+      390,
+      200,
+      84,
+      choose(locale, "通知服务", "Notification Service"),
+      "green",
+    ),
+    node(
+      "database",
+      "container",
+      930,
+      220,
+      190,
+      130,
+      choose(locale, "数据存储", "Data Store"),
+      "yellow",
+    ),
   ],
   edges: [
-    edge("e1", "client", "gateway", "right", "left"),
-    edge("e2", "gateway", "users", "right", "left"),
-    edge("e3", "gateway", "business", "right", "left"),
-    edge("e4", "gateway", "notice", "right", "left"),
-    edge("e5", "users", "database", "right", "left"),
-    edge("e6", "business", "database", "right", "left"),
-    edge("e7", "notice", "database", "right", "left"),
+    edge("e1", "client", "gateway", "right", "left", "", "none"),
+    edge("e2", "gateway", "users", "right", "left", "", "none"),
+    edge("e3", "gateway", "business", "right", "left", "", "none"),
+    edge("e4", "gateway", "notice", "right", "left", "", "none"),
+    edge("e5", "users", "database", "right", "left", "", "none"),
+    edge("e6", "business", "database", "right", "left", "", "none"),
+    edge("e7", "notice", "database", "right", "left", "", "none"),
   ],
 });
 
-const uml = (
-  description: string,
-  locale: Locale,
-): DrawingBoardAIResponse => ({
+const uml = (description: string, locale: Locale): DrawingBoardAIResponse => ({
   version: 1,
+  diagramType: "uml",
   title: description.slice(0, 80),
   nodes: [
-    node("actor", "actor", 80, 210, 130, 150, choose(locale, "用户", "User"), "gray"),
-    node("login", "useCase", 340, 100, 210, 90, choose(locale, "登录系统", "Sign in")),
-    node("submit", "useCase", 340, 250, 210, 90, choose(locale, "提交请求", "Submit request")),
-    node("query", "useCase", 340, 400, 210, 90, choose(locale, "查询状态", "View status")),
+    node(
+      "actor",
+      "actor",
+      80,
+      210,
+      130,
+      150,
+      choose(locale, "用户", "User"),
+      "gray",
+    ),
+    node(
+      "login",
+      "useCase",
+      340,
+      100,
+      210,
+      90,
+      choose(locale, "登录系统", "Sign in"),
+    ),
+    node(
+      "submit",
+      "useCase",
+      340,
+      250,
+      210,
+      90,
+      choose(locale, "提交请求", "Submit request"),
+    ),
+    node(
+      "query",
+      "useCase",
+      340,
+      400,
+      210,
+      90,
+      choose(locale, "查询状态", "View status"),
+    ),
     node("service", "class", 720, 195, 240, 210, "RequestService", "purple"),
   ],
   edges: [
@@ -137,6 +275,55 @@ const uml = (
   ],
 });
 
+const erDiagram = (
+  description: string,
+  locale: Locale,
+): DrawingBoardAIResponse => ({
+  version: 1,
+  diagramType: "er",
+  title: description.slice(0, 80),
+  nodes: [
+    node(
+      "user_entity",
+      "class",
+      80,
+      150,
+      240,
+      180,
+      choose(locale, "用户\nPK id\nname\nemail", "User\nPK id\nname\nemail"),
+      "blue",
+    ),
+    node(
+      "owns",
+      "diamond",
+      410,
+      190,
+      150,
+      100,
+      choose(locale, "创建", "creates"),
+      "yellow",
+    ),
+    node(
+      "order_entity",
+      "class",
+      660,
+      150,
+      250,
+      200,
+      choose(
+        locale,
+        "订单\nPK id\nFK user_id\namount\nstatus",
+        "Order\nPK id\nFK user_id\namount\nstatus",
+      ),
+      "green",
+    ),
+  ],
+  edges: [
+    edge("e1", "user_entity", "owns", "right", "left", "1", "none"),
+    edge("e2", "owns", "order_entity", "right", "left", "N", "none"),
+  ],
+});
+
 const mindMap = (
   description: string,
   locale: Locale,
@@ -146,21 +333,38 @@ const mindMap = (
       .replace(/请|帮我|生成|创建|一个|一张|思维导图|脑图/gi, "")
       .trim()
       .slice(0, 24) || choose(locale, "核心主题", "Main topic");
+  const idPrefix = Math.random().toString(36).slice(2, 8);
+  const topicData = (text: string) => ({
+    topic: {
+      children: [{ text }],
+      type: "paragraph",
+    },
+  });
+  const child = (id: string, text: string, children: unknown[] = []) => ({
+    id: `${idPrefix}_${id}`,
+    type: "mind_child",
+    data: topicData(text),
+    children,
+  });
   return {
-    version: 1,
-    title: topic,
-    nodes: [
-      node("root", "ellipse", 410, 260, 220, 100, topic, "purple"),
-      node("goal", "roundRectangle", 70, 80, 190, 72, choose(locale, "目标", "Goals")),
-      node("people", "roundRectangle", 70, 470, 190, 72, choose(locale, "参与者", "People"), "green"),
-      node("plan", "roundRectangle", 790, 80, 190, 72, choose(locale, "实施计划", "Plan"), "yellow"),
-      node("risk", "roundRectangle", 790, 470, 190, 72, choose(locale, "风险与指标", "Risks & metrics"), "gray"),
-    ],
-    edges: [
-      edge("e1", "root", "goal", "left", "right"),
-      edge("e2", "root", "people", "left", "right"),
-      edge("e3", "root", "plan", "right", "left"),
-      edge("e4", "root", "risk", "right", "left"),
+    plaitValue: [
+      {
+        id: `${idPrefix}_root`,
+        type: "mind",
+        data: topicData(topic),
+        children: [
+          child("goal", choose(locale, "目标", "Goals"), [
+            child("goal_detail", choose(locale, "明确范围", "Define scope")),
+          ]),
+          child("people", choose(locale, "参与者", "People")),
+          child("plan", choose(locale, "实施计划", "Plan"), [
+            child("plan_step", choose(locale, "分阶段执行", "Phased delivery")),
+          ]),
+          child("risk", choose(locale, "风险与指标", "Risks & metrics")),
+        ],
+        layout: "right",
+        points: [[0, 0]],
+      },
     ],
   };
 };
@@ -188,8 +392,13 @@ export async function mockDrawingBoardGenerate({
   if (/模拟失败|mock[\s-]?fail/i.test(description)) {
     throw new Error("Mock AI request failed");
   }
+  if (/\ber\b|实体关系|数据库模型|数据模型|表关系/i.test(description)) {
+    return erDiagram(description, locale);
+  }
   if (/uml|用例|类图/i.test(description)) return uml(description, locale);
-  if (/架构|architecture|微服务|系统图|技术图/i.test(description)) {
+  if (
+    /smart|架构|architecture|微服务|系统图|技术图|协作图/i.test(description)
+  ) {
     return architecture(description, locale);
   }
   if (/思维|脑图|mind[\s-]?map/i.test(description)) {

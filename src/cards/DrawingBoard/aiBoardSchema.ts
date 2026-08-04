@@ -15,20 +15,50 @@ import drawingBoardFormatSpec from "../../../docs/lakex-drawing-board-json-forma
 
 const RUNTIME_SPEC_START = "<!-- AI_RUNTIME_SPEC_START -->";
 const RUNTIME_SPEC_END = "<!-- AI_RUNTIME_SPEC_END -->";
+const NATIVE_MIND_SPEC_START = "<!-- AI_NATIVE_MIND_SPEC_START -->";
+const NATIVE_MIND_SPEC_END = "<!-- AI_NATIVE_MIND_SPEC_END -->";
+const DIAGRAM_TYPE_SPEC_START = "<!-- AI_DIAGRAM_TYPE_SPEC_START -->";
+const DIAGRAM_TYPE_SPEC_END = "<!-- AI_DIAGRAM_TYPE_SPEC_END -->";
 
-const extractRuntimeSpec = (document: string) => {
-  const start = document.indexOf(RUNTIME_SPEC_START);
-  const end = document.indexOf(RUNTIME_SPEC_END);
+const extractSpecSection = (
+  document: string,
+  startMarker: string,
+  endMarker: string,
+) => {
+  const start = document.indexOf(startMarker);
+  const end = document.indexOf(endMarker);
   if (start < 0 || end <= start) return document;
-  return document.slice(start + RUNTIME_SPEC_START.length, end).trim();
+  return document.slice(start + startMarker.length, end).trim();
 };
+
+const runtimeSpec = extractSpecSection(
+  drawingBoardFormatSpec,
+  RUNTIME_SPEC_START,
+  RUNTIME_SPEC_END,
+);
+const nativeMindSpec = extractSpecSection(
+  drawingBoardFormatSpec,
+  NATIVE_MIND_SPEC_START,
+  NATIVE_MIND_SPEC_END,
+);
+const diagramTypeSpec = extractSpecSection(
+  drawingBoardFormatSpec,
+  DIAGRAM_TYPE_SPEC_START,
+  DIAGRAM_TYPE_SPEC_END,
+);
 
 export const DRAWING_BOARD_AI_SYSTEM_PROMPT = [
   "你是 Lakex AI 画板数据生成器。",
   "请严格遵守下面的格式规范，根据用户描述生成一份可以直接导入画板的 JSON。",
   "最终响应只能包含 JSON 对象，不能包含 Markdown 代码围栏、解释或注释。",
   "",
-  extractRuntimeSpec(drawingBoardFormatSpec),
+  runtimeSpec,
+  "",
+  "以下是流程图、UML、Smart 和 ER 必须分别使用的分类规范：",
+  diagramTypeSpec,
+  "",
+  "以下是思维导图必须直接使用的第 7 条原生规范：",
+  nativeMindSpec,
 ].join("\n");
 
 type Anchor = "top" | "right" | "bottom" | "left";
@@ -73,10 +103,13 @@ interface AIBoardEdge {
 
 export interface AIBoardDocument {
   version: 1;
+  diagramType?: AIBoardDiagramType;
   title?: string;
   nodes: AIBoardNode[];
   edges: AIBoardEdge[];
 }
+
+export type AIBoardDiagramType = "board" | "flowchart" | "uml" | "smart" | "er";
 
 const shapeMap: Record<string, GeometryShapes> = {
   rectangle: BasicShapes.rectangle,
@@ -120,6 +153,75 @@ const shapeMap: Record<string, GeometryShapes> = {
   componentBox: UMLSymbols.componentBox,
   activityClass: UMLSymbols.activityClass,
   branchMerge: UMLSymbols.branchMerge,
+  port: UMLSymbols.port,
+  combinedFragment: UMLSymbols.combinedFragment,
+  template: UMLSymbols.template,
+  activation: UMLSymbols.activation,
+  deletion: UMLSymbols.deletion,
+};
+
+const diagramShapeNames: Record<
+  Exclude<AIBoardDiagramType, "board">,
+  ReadonlySet<string>
+> = {
+  flowchart: new Set([
+    "process",
+    "terminal",
+    "decision",
+    "data",
+    "connector",
+    "manualInput",
+    "preparation",
+    "predefinedProcess",
+    "document",
+    "multiDocument",
+    "database",
+    "internalStorage",
+    "delay",
+    "display",
+    "offPage",
+    "noteSquare",
+    "text",
+  ]),
+  smart: new Set([
+    "actor",
+    "useCase",
+    "component",
+    "container",
+    "note",
+    "package",
+    "text",
+  ]),
+  uml: new Set([
+    "actor",
+    "useCase",
+    "component",
+    "container",
+    "note",
+    "package",
+    "simpleClass",
+    "class",
+    "interface",
+    "object",
+    "componentBox",
+    "activityClass",
+    "branchMerge",
+    "port",
+    "combinedFragment",
+    "template",
+    "activation",
+    "deletion",
+    "text",
+  ]),
+  er: new Set([
+    "rectangle",
+    "roundRectangle",
+    "diamond",
+    "ellipse",
+    "parallelogram",
+    "class",
+    "text",
+  ]),
 };
 
 const shapeNameByNative = new Map<GeometryShapes, string>(
@@ -157,6 +259,15 @@ const readAnchor = (value: unknown): Anchor | undefined =>
     ? value
     : undefined;
 
+const readDiagramType = (value: unknown): AIBoardDiagramType | undefined =>
+  value === "board" ||
+  value === "flowchart" ||
+  value === "uml" ||
+  value === "smart" ||
+  value === "er"
+    ? value
+    : undefined;
+
 const readStrokeStyle = (value: unknown): StrokeStyle =>
   value === StrokeStyle.dashed || value === StrokeStyle.dotted
     ? value
@@ -174,7 +285,9 @@ const getNodeOverlapRatio = (left: AIBoardNode, right: AIBoardNode) => {
       Math.max(left.y, right.y),
   );
   const overlapArea = overlapWidth * overlapHeight;
-  return overlapArea / Math.min(left.width * left.height, right.width * right.height);
+  return (
+    overlapArea / Math.min(left.width * left.height, right.width * right.height)
+  );
 };
 
 /**
@@ -386,10 +499,7 @@ const readNativeMindElement = (
     element.layout = value.layout;
   }
   if (typeof value.rightNodeCount === "number") {
-    element.rightNodeCount = Math.max(
-      0,
-      Math.floor(value.rightNodeCount),
-    );
+    element.rightNodeCount = Math.max(0, Math.floor(value.rightNodeCount));
   }
   if (typeof value.manualWidth === "number") {
     element.manualWidth = readNumber(value.manualWidth, 0, 40, 1200);
@@ -451,9 +561,7 @@ export type ParsedAIBoardResponse =
   | { kind: "intermediate"; document: AIBoardDocument }
   | { kind: "native"; elements: PlaitElement[] };
 
-export function parseAIBoardResponse(
-  response: unknown,
-): ParsedAIBoardResponse {
+export function parseAIBoardResponse(response: unknown): ParsedAIBoardResponse {
   const raw = parseResponseValue(response);
   if (isRecord(raw)) {
     const nativeValue = Array.isArray(raw.plaitValue)
@@ -475,6 +583,10 @@ export function parseAIBoardDocument(response: unknown): AIBoardDocument {
   const raw = parseResponseValue(response);
   if (!isRecord(raw) || raw.version !== 1) {
     throw new Error("AI_SCHEMA_VERSION_INVALID");
+  }
+  const diagramType = readDiagramType(raw.diagramType);
+  if (raw.diagramType !== undefined && !diagramType) {
+    throw new Error("AI_DIAGRAM_TYPE_INVALID");
   }
   if (!Array.isArray(raw.nodes) || !Array.isArray(raw.edges)) {
     throw new Error("AI_SCHEMA_COLLECTION_INVALID");
@@ -555,8 +667,21 @@ export function parseAIBoardDocument(response: unknown): AIBoardDocument {
   });
   const normalizedNodes = normalizeAIBoardLayout(nodes, edges);
 
+  if (diagramType && diagramType !== "board") {
+    const allowedShapes = diagramShapeNames[diagramType];
+    const invalidNode = normalizedNodes.find(
+      (node) => !allowedShapes.has(node.shape),
+    );
+    if (invalidNode) {
+      throw new Error(
+        `AI_DIAGRAM_SHAPE_MISMATCH:${diagramType}:${invalidNode.shape}`,
+      );
+    }
+  }
+
   return {
     version: 1,
+    ...(diagramType ? { diagramType } : {}),
     title: readString(raw.title, 120) || undefined,
     nodes: normalizedNodes,
     edges,
@@ -656,9 +781,7 @@ const chooseNonConflictingAnchor = (
       isAnchorFacingNode(node, anchor, other),
   );
   return (
-    candidates.find((anchor) => !used.has(anchor)) ??
-    candidates[0] ??
-    inferred
+    candidates.find((anchor) => !used.has(anchor)) ?? candidates[0] ?? inferred
   );
 };
 
@@ -827,9 +950,7 @@ const anchorFromConnection = (connection: unknown): Anchor | undefined => {
  * Previous AI JSON is deliberately not retained; manual edits made between
  * prompts therefore become the source of truth for the next request.
  */
-export function serializeBoardToAIDocument(
-  board: PlaitBoard,
-): AIBoardDocument {
+export function serializeBoardToAIDocument(board: PlaitBoard): AIBoardDocument {
   const nodes: AIBoardNode[] = [];
   const nodeIds = new Set<string>();
 
@@ -850,8 +971,7 @@ export function serializeBoardToAIDocument(
       text: getElementTextValue(element).slice(0, 500),
       style: {
         fill:
-          element.fill === "transparent" ||
-          /^#[0-9a-f]{6}$/i.test(element.fill)
+          element.fill === "transparent" || /^#[0-9a-f]{6}$/i.test(element.fill)
             ? element.fill
             : "#E8F1FF",
         strokeColor: /^#[0-9a-f]{6}$/i.test(element.strokeColor)
@@ -886,8 +1006,7 @@ export function serializeBoardToAIDocument(
       : "";
     edges.push({
       id:
-        typeof element.id === "string" &&
-        /^[a-zA-Z0-9_-]+$/.test(element.id)
+        typeof element.id === "string" && /^[a-zA-Z0-9_-]+$/.test(element.id)
           ? element.id
           : `edge_${edges.length + 1}`,
       source: element.source.boundId,
@@ -911,6 +1030,48 @@ export function serializeBoardToAIDocument(
   return { version: 1, nodes, edges };
 }
 
+export interface NativeMindBoardDocument {
+  plaitValue: PlaitElement[];
+}
+
+export type AIBoardContextDocument = AIBoardDocument | NativeMindBoardDocument;
+
+const isNativeMindRoot = (element: PlaitElement) =>
+  element.type === "mind" || element.type === "mindmap";
+
+const countNativeMindNodes = (elements: PlaitElement[]) => {
+  let count = 0;
+  const visit = (element: Record<string, any>) => {
+    count += 1;
+    if (Array.isArray(element.children)) {
+      element.children.forEach(visit);
+    }
+  };
+  elements.forEach((element) => visit(element as Record<string, any>));
+  return count;
+};
+
+/** Keeps native mind trees native when they are sent back to the model. */
+export function serializeBoardToAIContext(
+  board: PlaitBoard,
+): AIBoardContextDocument {
+  const nativeMindRoots = board.children.filter(isNativeMindRoot);
+  if (nativeMindRoots.length) {
+    return {
+      plaitValue: nativeMindRoots.map(
+        (element) => JSON.parse(JSON.stringify(element)) as PlaitElement,
+      ),
+    };
+  }
+  return serializeBoardToAIDocument(board);
+}
+
+export function countAIBoardContextNodes(document: AIBoardContextDocument) {
+  return "plaitValue" in document
+    ? countNativeMindNodes(document.plaitValue)
+    : document.nodes.length;
+}
+
 const MAX_MEMORY_ITEMS = 20;
 const MAX_MEMORY_CHARACTERS = 8000;
 
@@ -922,7 +1083,7 @@ export function buildAIBoardContextPrompt({
 }: {
   description: string;
   history: readonly string[];
-  currentBoard: AIBoardDocument;
+  currentBoard: AIBoardContextDocument;
   mode: "replace" | "append";
 }) {
   const retainedHistory: string[] = [];
@@ -939,19 +1100,18 @@ export function buildAIBoardContextPrompt({
     retainedCharacters += item.length;
   }
   const historyText = retainedHistory.length
-    ? retainedHistory
-        .map((item, index) => `${index + 1}. ${item}`)
-        .join("\n")
+    ? retainedHistory.map((item, index) => `${index + 1}. ${item}`).join("\n")
     : "无，这是本轮会话的第一次提问。";
   const boardJSON = JSON.stringify(currentBoard);
+  const currentBoardNodeCount = countAIBoardContextNodes(currentBoard);
   const behavior =
     mode === "append"
       ? [
           "本轮模式：添加独立图到当前画布。",
           "当前画布 JSON 仅用于理解已有内容和避免语义重复。",
-          "只返回本轮需要新增的完整节点与连线，不要重复输出当前画布已有节点。",
+          "只返回本轮需要新增的完整图表；普通图表返回新增节点与连线，思维导图返回完整的新增 plaitValue 根节点。",
         ]
-      : currentBoard.nodes.length
+      : currentBoardNodeCount
         ? [
             "本轮模式：继续修改当前画布。",
             "必须以当前画布 JSON 为基础完成最新需求。",
