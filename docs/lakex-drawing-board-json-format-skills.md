@@ -8,9 +8,9 @@
 
 只输出一个合法 JSON 对象，不要 Markdown、代码围栏、解释或注释。
 
-根结构：
+普通画板、流程图、UML、Smart 和 ER 根结构：
 
-`{"version":1,"title":"可选标题","nodes":[],"edges":[]}`
+`{"version":1,"diagramType":"flowchart","title":"可选标题","nodes":[],"edges":[]}`
 
 节点结构：
 
@@ -22,11 +22,12 @@
 
 允许的 `shape`：
 
-`rectangle,roundRectangle,ellipse,diamond,triangle,parallelogram,trapezoid,pentagon,hexagon,octagon,cloud,text,process,terminal,decision,data,connector,manualInput,preparation,predefinedProcess,document,multiDocument,database,internalStorage,delay,display,offPage,noteSquare,actor,useCase,component,container,note,package,simpleClass,class,interface,object,componentBox,activityClass,branchMerge`
+`rectangle,roundRectangle,ellipse,diamond,triangle,parallelogram,trapezoid,pentagon,hexagon,octagon,cloud,text,process,terminal,decision,data,connector,manualInput,preparation,predefinedProcess,document,multiDocument,database,internalStorage,delay,display,offPage,noteSquare,actor,useCase,component,container,note,package,simpleClass,class,interface,object,componentBox,activityClass,branchMerge,port,combinedFragment,template,activation,deletion`
 
 约束：
 
 - `version` 必须是数字 `1`，不能是字符串。
+- `diagramType` 必须根据用户意图填写为 `board,flowchart,uml,smart,er` 之一，并严格使用第 8 节对应分类的图形和布局规则。
 - ID 只能包含字母、数字、下划线、短横线；全部唯一。
 - 最多 80 个节点、120 条连线。
 - 节点必须使用 `shape` 和 `text` 字段，不能改成 `type`、`label`。
@@ -42,16 +43,27 @@
 - 锚点必须朝向另一个节点：上方来源进入目标用 `targetAnchor:top`，下方来源用 `bottom`，左侧来源用 `left`，右侧来源用 `right`。如果来源中心的 x 落在目标宽度内，禁止从目标 `left/right` 进入；如果来源中心的 y 落在目标高度内，禁止从目标 `top/bottom` 进入。
 - 多条连线进入同一节点且来源方向不同时，必须使用不同 `targetAnchor`；例如上方来源进入 `top`、左侧来源进入 `left`，不能为了对齐而让连线横穿目标图形。
 - 普通节点推荐 180×64，判断节点推荐 180×110。
-- 当前 AI 响应中的普通图表使用 `nodes + edges` 表达；思维导图也可以使用这一中间格式，中心主题使用 `roundRectangle`，分支使用 `rectangle`，连线使用 `curve`、`endMarker:none`。如果需要保留原生思维导图层级，也可以直接返回第 7 节定义的 `{ "plaitValue": [...] }`，应用会提取、校验并规范化后直接挂载到画板，不会再转换成普通几何节点。
-- 原生思维导图响应是唯一允许的替代根结构：`{ "plaitValue": [{ "type":"mind", "data":{...}, "children":[...] }] }`。此时不要同时输出 `version`、`nodes` 或 `edges`，也不要把 `mind_child` 放到顶层。
+- 只要用户要求思维导图、脑图或 mind map，禁止使用 `nodes + edges`，必须返回原生 `plaitValue` 树结构。
+
+思维导图强制根结构：
+
+`{"plaitValue":[{"id":"mind_root","type":"mind","data":{"topic":{"children":[{"text":"中心主题"}],"type":"paragraph"}},"children":[],"layout":"right","points":[[0,0]]}]}`
+
+思维导图约束：
+
+- 顶层只能放 `type:"mind"` 根节点；所有后代必须是 `type:"mind_child"`。
+- 父子关系只通过嵌套 `children` 表达，叶子必须使用 `children:[]`；禁止输出独立 `edges`。
+- 每个节点都必须有唯一 `id` 和 `data.topic`；`topic` 必须是 `{"children":[{"text":"文字"}],"type":"paragraph"}`。
+- 根节点必须包含 `layout` 和单点 `points`；默认使用 `layout:"right"`、`points:[[0,0]]`。后代节点不要输出 `points`。
+- 思维导图响应不要同时输出 `version`、`nodes`、`edges`、`shape`、`x`、`y`、`width` 或 `height`。
 
 <!-- AI_RUNTIME_SPEC_END -->
 
 ## 1. 输出要求
 
 1. 只输出一个合法 JSON 对象，不要输出 Markdown 代码块、解释、注释或前后缀。
-2. 根对象必须包含 `version`、`nodes`、`edges`。
-3. `version` 固定为 `1`。
+2. 普通图表根对象必须包含 `version`、`diagramType`、`nodes`、`edges`；原生思维导图必须改用第 7 节的 `plaitValue`。
+3. 普通图表的 `version` 固定为 `1`。
 4. 所有 `id` 在同一份 JSON 内唯一，只能包含字母、数字、下划线和短横线。
 5. 最多 80 个节点、120 条连线。不要生成孤立且没有信息的装饰元素。
 6. 坐标单位为画板逻辑像素。建议把图形放在 `x=80..1400`、`y=80..900` 范围内。
@@ -59,11 +71,12 @@
 8. 节点文本应简洁。中文通常不超过 20 个字，英文通常不超过 60 个字符。
 9. 不允许输出 HTML、脚本、图片 URL、data URL、事件、函数或 Drawnix/Plait 私有字段。
 
-## 2. 根对象
+## 2. 普通图表根对象
 
 ```json
 {
   "version": 1,
+  "diagramType": "flowchart",
   "title": "可选的图表标题",
   "nodes": [],
   "edges": []
@@ -73,6 +86,7 @@
 | 字段      | 类型   | 必填 | 说明                               |
 | --------- | ------ | ---- | ---------------------------------- |
 | `version` | number | 是   | 固定为 `1`                         |
+| `diagramType` | string | 是 | `board,flowchart,uml,smart,er` 之一 |
 | `title`   | string | 否   | 图表标题，应用不会把它自动插入画布 |
 | `nodes`   | array  | 是   | 节点列表                           |
 | `edges`   | array  | 是   | 连线列表                           |
@@ -148,7 +162,16 @@
 - `offPage`：页外连接
 - `noteSquare`：注释
 
-UML / Smart：
+Smart：
+
+- `actor`：角色
+- `useCase`：用例
+- `component`：组件
+- `container`：容器
+- `note`：便签
+- `package`：包
+
+UML：
 
 - `actor`：角色
 - `useCase`：用例
@@ -163,6 +186,20 @@ UML / Smart：
 - `componentBox`：组件框
 - `activityClass`：活动
 - `branchMerge`：分支或合并
+- `port`：端口
+- `combinedFragment`：组合片段
+- `template`：模板
+- `activation`：激活生命线
+- `deletion`：销毁节点
+
+ER：
+
+- `rectangle`：实体
+- `roundRectangle`：弱实体
+- `diamond`：关系
+- `ellipse`：属性
+- `parallelogram`：关联实体
+- `class`：带字段明细的实体
 
 ### 3.3 节点样式
 
@@ -284,99 +321,20 @@ UML / Smart：
 - 先放置节点，再按节点位置分配锚点；若连线会穿过节点，应移动分支节点或切换到另一侧，而不是继续输出重叠连线。
 - 连线只连接语义相关节点，不要用连线绘制装饰边框。
 
-### 5.1 AI 中间格式思维导图
+### 5.1 思维导图
 
-默认 AI 中间格式使用 `nodes + edges`，思维导图不新增私有根节点类型：
-
-- 中心主题使用 `roundRectangle`，尺寸建议 `180×72`。
-- 一级、二级分支使用 `rectangle` 或 `roundRectangle`，尺寸建议 `140..180 × 48..64`。
-- 中心主题放在画布中心；一级分支在左右两侧分布，子分支沿父分支方向继续展开。
-- 每个节点必须有不同且可用的 `x/y` 坐标；中心与一级分支至少间隔 220px，同一层分支至少间隔 96px。禁止所有节点复用中心节点坐标。
-- 每个非根节点只保留一条来自父节点的连线，不要形成环。
-- 思维导图连线推荐 `lineType:"curve"`、`endMarker:"none"`；主分支可使用更粗的 `strokeWidth`。
-- 同一分支的节点与连线使用相同的 `strokeColor`，不同一级分支可以使用不同色系。
-- 横向连接使用 `right -> left` 或 `left -> right`，不要让连线穿过其他节点。
-
-当前 AI 生成接口默认接收本规范的 `nodes + edges`，应用层会通过
-`convertAIBoardDocument` 转换为画板元素。对于需要保留原生思维导图树结构的请求，也可以返回 `{ "plaitValue": [...] }`；应用会先校验并规范化 `mind` / `mind_child`，再通过原生 Mind 插入流程直接挂载，不能把它们当作普通几何节点处理。
-
-示例：
-
-```json
-{
-  "version": 1,
-  "title": "产品规划",
-  "nodes": [
-    {
-      "id": "root",
-      "shape": "roundRectangle",
-      "x": 500,
-      "y": 320,
-      "width": 180,
-      "height": 72,
-      "text": "产品规划"
-    },
-    {
-      "id": "requirements",
-      "shape": "roundRectangle",
-      "x": 220,
-      "y": 210,
-      "width": 160,
-      "height": 56,
-      "text": "需求分析"
-    },
-    {
-      "id": "delivery",
-      "shape": "roundRectangle",
-      "x": 800,
-      "y": 430,
-      "width": 160,
-      "height": 56,
-      "text": "发布计划"
-    }
-  ],
-  "edges": [
-    {
-      "id": "root_requirements",
-      "source": "root",
-      "target": "requirements",
-      "sourceAnchor": "left",
-      "targetAnchor": "right",
-      "style": {
-        "lineType": "curve",
-        "strokeColor": "#5B8FF9",
-        "strokeWidth": 2,
-        "strokeStyle": "solid",
-        "endMarker": "none"
-      }
-    },
-    {
-      "id": "root_delivery",
-      "source": "root",
-      "target": "delivery",
-      "sourceAnchor": "right",
-      "targetAnchor": "left",
-      "style": {
-        "lineType": "curve",
-        "strokeColor": "#5BB98C",
-        "strokeWidth": 2,
-        "strokeStyle": "solid",
-        "endMarker": "none"
-      }
-    }
-  ]
-}
-```
+思维导图不使用本节的坐标和连线布局规则，也不允许使用普通 `nodes + edges` 图形模拟。必须直接使用第 7 节的原生 `plaitValue` 树结构，由 Plait Mind 组件根据 `children` 和 `layout` 自动计算节点位置与分支连线。
 
 ## 6. 普通流程图中间格式示例
 
 用户描述：“生成一个用户提交工单的流程图，审核通过后进入处理中，不通过则退回修改，最后完成。”
 
-模型在使用 `nodes + edges` 模式时应只返回以下 JSON；这段示例仍适用于流程图、UML 和普通画板，不适用于原生思维导图 `plaitValue` 模式：
+模型在使用 `nodes + edges` 模式时应只返回以下 JSON；这段示例是流程图示例，其他类型必须改用第 8 节对应规范，不适用于原生思维导图 `plaitValue` 模式：
 
 ```json
 {
   "version": 1,
+  "diagramType": "flowchart",
   "title": "工单处理流程",
   "nodes": [
     {
@@ -499,19 +457,11 @@ UML / Smart：
 
 注意：实际响应不能包含上面的 Markdown 代码围栏，只包含 JSON 对象。若生成原生思维导图，则应改用第 7 节的 `{ "plaitValue": [...] }` 根结构。
 
-## 7. 原生 `plaitValue` 持久化格式
+<!-- AI_NATIVE_MIND_SPEC_START -->
 
-`plaitValue` 是画板卡片保存到 Lakex 文档中的原生 Plait 元素数组。它与上面的 AI 中间格式不同：AI 接口使用 `version + nodes + edges`，卡片值使用 `plaitValue`。`writeText` 会把它包装为如下 JSON：
+## 7. AI 原生思维导图 `plaitValue` 规范
 
-```json
-{
-  "type": "drawnix",
-  "version": 1,
-  "source": "lakex",
-  "elements": [],
-  "viewport": { "x": 0, "y": 0, "zoom": 1 }
-}
-```
+`plaitValue` 是思维导图组件和画板卡片使用的原生 Plait 元素数组。普通图表继续使用 `version + nodes + edges`，但 AI 生成思维导图时必须直接返回 `{ "plaitValue": [...] }`。不要套用 `drawnix`、`elements` 或其他持久化包裹结构。
 
 ### 7.1 原生思维导图结构
 
@@ -608,7 +558,72 @@ UML / Smart：
 
 | AI 响应根结构 | 适用场景 | 应用处理 |
 | --- | --- | --- |
-| `{ "version": 1, "nodes": [], "edges": [] }` | 普通画板、流程图、UML，以及使用中间格式表达的思维导图 | 校验后转换为 geometry / arrow-line 元素 |
-| `{ "plaitValue": [{ "type": "mind", "children": [...] }] }` | 需要保留原生层级、布局和思维导图行为 | 提取并校验原生树，直接挂载为 `mind` 元素 |
+| `{ "version": 1, "diagramType": "...", "nodes": [], "edges": [] }` | 普通画板、流程图、UML、Smart、ER | 按 `diagramType` 校验图形集合，再转换为 geometry / arrow-line 元素 |
+| `{ "plaitValue": [{ "type": "mind", "children": [...] }] }` | 所有思维导图、脑图、mind map 请求 | 提取并校验原生树，直接挂载为 `mind` 元素 |
 
 因此，你给出的 `plaitValue` 不需要再转换成 `nodes + edges`；只需要保留完整的 `mind` / `mind_child` 树结构，并作为 AI 响应的根对象返回。
+
+<!-- AI_NATIVE_MIND_SPEC_END -->
+
+<!-- AI_DIAGRAM_TYPE_SPEC_START -->
+
+## 8. 流程图、UML、Smart 与 ER 分类规范
+
+除原生思维导图外，AI 必须先识别用户需要的图表类型，并在根对象中填写对应的 `diagramType`。除非用户明确要求混合图，否则禁止跨分类借用图形；存在对应语义图形时，不能用普通矩形代替。
+
+类型选择优先级：
+
+- 操作步骤、审批、业务流转、条件分支、异常回退：`flowchart`。
+- 用例图、类图、组件图、活动图、时序或系统建模：`uml`。
+- 角色协作、概念关系、系统模块、容器和便签式架构表达：`smart`。
+- 数据库表、实体、属性、主外键和实体关系：`er`。
+- 只是自由排版、信息卡片或无法归入以上类型：`board`。
+- 思维导图、脑图、mind map 不使用 `diagramType`，必须改用第 7 节的原生 `plaitValue`。
+
+### 8.1 流程图 `flowchart`
+
+只使用 `process,terminal,decision,data,connector,manualInput,preparation,predefinedProcess,document,multiDocument,database,internalStorage,delay,display,offPage,noteSquare,text`。
+
+- 开始和结束必须使用 `terminal`；普通操作使用 `process`；条件分支使用 `decision`，不能用普通 `diamond` 代替。
+- 输入输出使用 `data`，数据存储按语义使用 `database` 或 `internalStorage`，可复用流程使用 `predefinedProcess`。
+- 主流程优先自上而下。判断节点的不同出口必须使用不同锚点，并在连线 `label` 中明确“是/否”“成功/失败”等条件。
+- 流转线默认 `endMarker:"arrow"`；注释线才允许 `endMarker:"none"`。
+
+### 8.2 UML `uml`
+
+只使用 `actor,useCase,component,container,note,package,simpleClass,class,interface,object,componentBox,activityClass,branchMerge,port,combinedFragment,template,activation,deletion,text`。
+
+按 UML 子类型选择图形：
+
+- 用例图：参与者用 `actor`，用例用 `useCase`，系统边界用 `container`。
+- 类图：类用 `class` 或 `simpleClass`，接口用 `interface`，实例用 `object`，泛型定义用 `template`。`class/interface` 的 `text` 第一行是名称，后续行是属性或方法。
+- 组件图：组件用 `component` 或 `componentBox`，分组用 `package/container`，接口连接点用 `port`。
+- 活动图：活动使用 `activityClass`，判断或汇合使用 `branchMerge`。
+- 时序表达：参与对象使用 `actor/object`，生命期激活使用 `activation`，组合条件使用 `combinedFragment`，销毁点使用 `deletion`。
+
+UML 连线的 `label` 应写明关系语义，如“继承”“实现”“依赖”“关联”“包含”。继承、实现或有向依赖使用 `endMarker:"arrow"`；普通关联使用 `endMarker:"none"`。同一层的类或组件应对齐，并为关系文字预留空间。
+
+### 8.3 Smart `smart`
+
+只使用 `actor,useCase,component,container,note,package,text`。
+
+- 人员或外部参与方使用 `actor`，目标或能力使用 `useCase`，模块使用 `component`，边界或系统域使用 `container`。
+- 同一业务域用 `package` 分组，补充说明使用 `note`，不能把便签作为流程节点。
+- Smart 图用于高层概念、协作和架构关系，不应混入流程图的 `decision/process` 或 UML 类明细图形。
+- 布局优先从左到右：角色在左、能力或组件居中、容器或系统边界在右；关联线通常使用 `endMarker:"none"`，存在明确方向时才使用箭头。
+
+### 8.4 ER `er`
+
+只使用 `rectangle,roundRectangle,diamond,ellipse,parallelogram,class,text`。
+
+- 实体使用 `rectangle`；弱实体使用 `roundRectangle`；关系使用 `diamond`；属性使用 `ellipse`；关联实体使用 `parallelogram`。
+- 需要展示表字段时使用 `class`：第一行是实体名，后续每行一个字段，可用 `PK`、`FK` 标记主键和外键。
+- ER 关系线使用 `endMarker:"none"`。基数写入 `label`，使用 `1:1`、`1:N`、`M:N`、`0..1` 或 `0..N` 等明确标记。
+- 实体按主要关系横向或网格排布；关系菱形位于关联实体之间，属性靠近所属实体。禁止连线穿过其他实体或属性。
+- 关系节点必须同时连接至少两个实体；属性只能连接所属实体，不得形成独立业务流程。
+
+### 8.5 分类校验
+
+应用会根据 `diagramType` 校验每个节点的 `shape`。如果 UML、Smart、ER 或流程图使用了其他分类的图形，整份 AI 响应会被拒绝；因此必须先选类型，再生成节点和连线。
+
+<!-- AI_DIAGRAM_TYPE_SPEC_END -->
