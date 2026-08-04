@@ -806,9 +806,13 @@ export default function DrawnixBoardCore({
           }
         }
         positionedElements.forEach((element) => {
-          Transforms.insertNode(targetBoard, element, [
-            targetBoard.children.length,
-          ]);
+          if (element.type === "mind" || element.type === "mindmap") {
+            MindTransforms.insertMind(targetBoard as any, element as any);
+          } else {
+            Transforms.insertNode(targetBoard, element, [
+              targetBoard.children.length,
+            ]);
+          }
         });
       });
       // Geometry hosts are created during the next React/Plait update. Fit on
